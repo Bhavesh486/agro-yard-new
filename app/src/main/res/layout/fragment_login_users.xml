@@ -22,14 +22,15 @@
 
     <!-- Centered Content -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="24dp"
         android:gravity="center"
         android:layout_centerInParent="true"
         android:background="@drawable/rounded_bg"
-        android:elevation="8dp">
+        android:elevation="8dp"
+        android:layout_margin="55dp">
 
         <!-- App Icon -->
         <ImageView
@@ -102,7 +103,7 @@
             android:textSize="14sp"
             android:layout_marginTop="12dp"
             android:gravity="center"
-            android:layout_gravity="center"/>
+            android:layout_gravity="center" />
     </LinearLayout>
 
 </RelativeLayout>

@@ -9,4 +9,28 @@
     <string name="password">Password</string>
     <string name="image_background">Image Background</string>
     <string name="app_logo">App Logo</string>
+    <string name="name">Full Name</string>
+    <string name="confirm_password">Confirm Password</string>
+    <string name="sign_up">Sign Up</string>
+    <string name="already_have_an_account_login">Already have an account? Log in</string>
+    <string name="mobile_number">Mobile Number</string>
+    <string name="market_name">Market Name</string>
+    <string name="district">District</string>
+    <string name="taluka">Taluka</string>
+    <string name="state">State</string>
+
+    <string-array name="user_types">
+        <item>Select User Type</item>
+        <item>Farmer</item>
+        <item>Member</item>
+    </string-array>
+
+    <string-array name="states">
+        <item>Select State</item>
+    </string-array>
+
+    <string-array name="districts">
+        <item>Select District</item>
+    </string-array>
+
 </resources>
