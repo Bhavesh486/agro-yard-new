@@ -18,6 +18,7 @@
     <string name="district">District</string>
     <string name="taluka">Taluka</string>
     <string name="state">State</string>
+    <string name="connecting_farmers_amp_buyers"><![CDATA[Connecting Farmers & Buyers]]></string>
 
     <string-array name="user_types">
         <item>Select User Type</item>
