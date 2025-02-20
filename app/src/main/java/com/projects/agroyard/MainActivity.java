@@ -11,6 +11,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 
+import com.projects.agroyard.fragments.About;
 import com.projects.agroyard.fragments.LoginUsers;
 
 public class MainActivity extends AppCompatActivity {
@@ -27,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (savedInstanceState == null) {
-            loadFragment(new LoginUsers());
+            loadFragment(new About());
         }
     }
 
