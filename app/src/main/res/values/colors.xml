@@ -49,6 +49,16 @@
     <color name="loginTextColor">#2E7D32</color> <!-- Green for Login -->
     <color name="tabSelectedColor">#4CAF50</color> <!-- Selected Tab Color -->
     <color name="tabUnselectedColor">#BDBDBD</color> <!-- Unselected Tab Color -->
+    <color name="primary_dark">#53803F</color>
+    <color name="primary">#8C6239</color>
+    <color name="orange">#FFA000</color>
+    <color name="green">#4CAF50</color>
+    <color name="circle_bg">#33FFFFFF</color>
+    <color name="circle_pl">#1A3F51B5</color>
+    <color name="circle_ol">#1AFFA000</color>
+    <color name="circle_gl">#1A4CAF50</color>
+    <color name="circle_odl">#1AFF6F00</color>
+    <color name="circle_gdl">#1A1B5E20</color>
 
 
 </resources>

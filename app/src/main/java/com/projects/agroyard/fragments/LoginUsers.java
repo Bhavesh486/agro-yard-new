@@ -1,16 +1,13 @@
 package com.projects.agroyard.fragments;
 
 import android.os.Bundle;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
-
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-
 import com.projects.agroyard.R;
 
 public class LoginUsers extends Fragment {
@@ -31,14 +28,28 @@ public class LoginUsers extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // Handle login button click
+        view.findViewById(R.id.loginButton).setOnClickListener(v -> loginUser());
+
+        // Handle signup redirection
         view.findViewById(R.id.signupText).setOnClickListener(v -> openSignup());
+    }
+
+    private void loginUser() {
+        // TODO: Add actual login logic (authentication, API call, etc.)
+
+        // After successful login, navigate to BottomNavigationFragment
+        Fragment homeFragment = new BottomNavigationFragment();
+        FragmentTransaction transaction = requireActivity().getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragment_container, homeFragment);
+        transaction.commit();
     }
 
     private void openSignup() {
         Fragment signupFragment = new SignupUser();
-        FragmentTransaction fragmentTransaction = requireActivity().getSupportFragmentManager().beginTransaction();
-        fragmentTransaction.replace(R.id.fragment_container, signupFragment);
-        fragmentTransaction.addToBackStack(null);
-        fragmentTransaction.commit();
+        FragmentTransaction transaction = requireActivity().getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragment_container, signupFragment);
+        transaction.addToBackStack(null);
+        transaction.commit();
     }
 }
