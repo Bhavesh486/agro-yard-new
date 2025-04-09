@@ -7,6 +7,7 @@ public class Constants {
     public static final String SELECT_STATE = "Select State";
     public static final String SELECT_DISTRICT = "Select District";
     public static final String MEMBER = "Member";
+    public static final String FARMER = "Farmer";
     public static final long SPLASH_TIME_OUT = 3000;
     public static final long TAGLINE_DELAY = 1000;
 

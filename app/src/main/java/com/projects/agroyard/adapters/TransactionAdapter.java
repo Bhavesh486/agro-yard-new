@@ -8,7 +8,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.projects.agroyard.R;
-import com.projects.agroyard.fragments.HomeFragment.Transaction;
+import com.projects.agroyard.model.Transaction;
 import java.util.List;
 
 public class TransactionAdapter extends RecyclerView.Adapter<TransactionAdapter.ViewHolder> {

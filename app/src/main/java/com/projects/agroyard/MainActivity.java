@@ -12,17 +12,22 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import com.projects.agroyard.fragments.BottomNavigationFragment;
 import com.projects.agroyard.fragments.LoginUsers;
+import com.projects.agroyard.utils.SessionManager;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String PREFS_NAME = "UserPrefs";
     private static final String KEY_IS_LOGGED_IN = "isLoggedIn";
+    private SessionManager sessionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
+        // Initialize SessionManager
+        sessionManager = new SessionManager(this);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.fragment_container), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -47,13 +52,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean isUserLoggedIn() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        return prefs.getBoolean(KEY_IS_LOGGED_IN, false);
+        // Use SessionManager to check if user is logged in
+        return sessionManager.isLoggedIn();
     }
 
-    public void setUserLoggedIn(boolean loggedIn) {
-        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-        editor.putBoolean(KEY_IS_LOGGED_IN, loggedIn);
-        editor.apply();
+    public void logoutUser() {
+        // Clear session data
+        sessionManager.logoutUser();
+        
+        // Navigate back to login screen
+        loadFragment(new LoginUsers());
     }
 }

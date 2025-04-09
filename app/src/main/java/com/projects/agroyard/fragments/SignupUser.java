@@ -1,5 +1,7 @@
 package com.projects.agroyard.fragments;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -18,6 +20,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.projects.agroyard.R;
 import com.projects.agroyard.client.StateClient;
 import com.projects.agroyard.client.callback.StateDataCallback;
@@ -35,13 +38,20 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class SignupUser extends Fragment {
+    private static final String PREFS_NAME = "UserPrefs";
+    private static final String KEY_USER_TYPE = "userType";
+    private static final String KEY_USER_NAME = "userName";
+    private static final String TAG = "SignupUser";
+    
     private FirebaseAuth mAuth; // Firebase Auth instance
+    private FirebaseFirestore db; // Firestore database
     private EditText emailEditText, passwordEditText; // Fields for email and password
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mAuth = FirebaseAuth.getInstance(); // Initialize Firebase Auth
+        db = FirebaseFirestore.getInstance(); // Initialize Firestore
     }
 
     @Override
@@ -57,6 +67,14 @@ public class SignupUser extends Fragment {
         emailEditText = view.findViewById(R.id.emailInput);
         passwordEditText = view.findViewById(R.id.passwordInput);
         Button signupButton = view.findViewById(R.id.signupButton);
+        EditText nameInput = view.findViewById(R.id.nameInput);
+        EditText mobileNumber = view.findViewById(R.id.mobileNumber);
+        EditText confirmPasswordInput = view.findViewById(R.id.confirmPasswordInput);
+        EditText marketName = view.findViewById(R.id.marketName);
+        EditText marketId = view.findViewById(R.id.marketId);
+        Spinner userTypeSpinner = view.findViewById(R.id.userTypeSpinner);
+        Spinner stateSpinner = view.findViewById(R.id.stateSpinner);
+        Spinner districtSpinner = view.findViewById(R.id.districtSpinner);
 
         setSpinnerAdapter(view);
 
@@ -73,23 +91,109 @@ public class SignupUser extends Fragment {
         signupButton.setOnClickListener(v -> {
             String email = emailEditText.getText().toString().trim();
             String password = passwordEditText.getText().toString().trim();
-
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(getContext(), "Please enter email and password", Toast.LENGTH_SHORT).show();
+            String name = nameInput.getText().toString().trim();
+            String mobile = mobileNumber.getText().toString().trim();
+            String confirmPassword = confirmPasswordInput.getText().toString().trim();
+            String userType = userTypeSpinner.getSelectedItem().toString();
+            String state = stateSpinner.getSelectedItem().toString();
+            String district = districtSpinner.getSelectedItem().toString();
+            
+            // Validate basic fields
+            if (email.isEmpty() || password.isEmpty() || name.isEmpty() || mobile.isEmpty() || confirmPassword.isEmpty()) {
+                Toast.makeText(getContext(), "Please fill all required fields", Toast.LENGTH_SHORT).show();
                 return;
             }
+            
+            // Validate user type selection
+            if (userType.equals("Select User Type")) {
+                Toast.makeText(getContext(), "Please select a user type", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            // Validate state and district
+            if (state.equals(Constants.SELECT_STATE) || district.equals(Constants.SELECT_DISTRICT)) {
+                Toast.makeText(getContext(), "Please select state and district", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            // Validate password match
+            if (!password.equals(confirmPassword)) {
+                Toast.makeText(getContext(), "Passwords do not match", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            // Validate Market ID for Member user type
+            String marketNameStr = "";
+            String marketIdStr = "";
+            if (userType.equals(Constants.MEMBER)) {
+                marketNameStr = marketName.getText().toString().trim();
+                marketIdStr = marketId.getText().toString().trim();
+                
+                if (marketNameStr.isEmpty() || marketIdStr.isEmpty()) {
+                    Toast.makeText(getContext(), "Market Name and Market ID are required for Members", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+            }
 
+            // Prepare user data for Firestore
+            final Map<String, Object> userData = new HashMap<>();
+            userData.put("name", name);
+            userData.put("email", email);
+            userData.put("mobile", mobile);
+            userData.put("userType", userType);
+            userData.put("state", state);
+            userData.put("district", district);
+            userData.put("createdAt", System.currentTimeMillis());
+            
+            // Add market details if user is a member
+            if (userType.equals(Constants.MEMBER)) {
+                userData.put("marketName", marketNameStr);
+                userData.put("marketId", marketIdStr);
+            }
+
+            // Store user type in shared preferences for immediate use
+            saveUserTypeAndName(userType, name);
+
+            // Create user with Firebase Authentication
             mAuth.createUserWithEmailAndPassword(email, password)
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful()) {
                             FirebaseUser user = mAuth.getCurrentUser();
-                            Toast.makeText(getContext(), "Signup successful: " + user.getEmail(), Toast.LENGTH_SHORT).show();
-                            openLogin(); // Redirect to login after signup
+                            
+                            // Store user data in Firestore
+                            storeUserDataInFirestore(user.getUid(), userData);
+                            
                         } else {
                             Toast.makeText(getContext(), "Signup failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
                         }
                     });
         });
+    }
+    
+    private void storeUserDataInFirestore(String userId, Map<String, Object> userData) {
+        // Store user data in Firestore
+        db.collection("users")
+            .document(userId)
+            .set(userData)
+            .addOnSuccessListener(aVoid -> {
+                Log.d(TAG, "User data stored successfully in Firestore");
+                Toast.makeText(getContext(), "Signup successful!", Toast.LENGTH_SHORT).show();
+                openLogin(); // Redirect to login after signup
+            })
+            .addOnFailureListener(e -> {
+                Log.e(TAG, "Error storing user data in Firestore", e);
+                Toast.makeText(getContext(), "Error saving user data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
+    }
+    
+    private void saveUserTypeAndName(String userType, String name) {
+        // Save user type and name to SharedPreferences
+        SharedPreferences.Editor editor = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+        editor.putString(KEY_USER_TYPE, userType);
+        editor.putString(KEY_USER_NAME, name);
+        editor.apply();
+        
+        Log.d(TAG, "Saved user type: " + userType + ", name: " + name);
     }
 
     private void getStateDistList(final StateDataCallback callback) {
@@ -145,6 +249,7 @@ public class SignupUser extends Fragment {
         }
 
         TextView marketName = view.findViewById(R.id.marketName);
+        EditText marketId = view.findViewById(R.id.marketId);
         Spinner userTypeSpinner = view.findViewById(R.id.userTypeSpinner);
 
         userTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -153,8 +258,10 @@ public class SignupUser extends Fragment {
                 String selectedType = parent.getItemAtPosition(position).toString();
                 if (selectedType.equals(Constants.MEMBER)) {
                     marketName.setVisibility(View.VISIBLE);
+                    marketId.setVisibility(View.VISIBLE);
                 } else {
                     marketName.setVisibility(View.GONE);
+                    marketId.setVisibility(View.GONE);
                 }
             }
 
@@ -214,10 +321,24 @@ public class SignupUser extends Fragment {
     }
 
     private void openLogin() {
+        // Clear previous user data when going to login from signup
+        clearPreviousUserData();
+
         Fragment loginUsers = new LoginUsers();
         FragmentTransaction fragmentTransaction = requireActivity().getSupportFragmentManager().beginTransaction();
         fragmentTransaction.replace(R.id.fragment_container, loginUsers);
         fragmentTransaction.addToBackStack(null);
         fragmentTransaction.commit();
+    }
+    
+    private void clearPreviousUserData() {
+        // Clear user type data when moving to login page from signup
+        // This ensures we'll use the freshly created user data
+        SharedPreferences.Editor editor = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+        editor.remove(KEY_USER_TYPE);
+        editor.remove(KEY_USER_NAME);
+        editor.apply();
+        
+        Log.d("SignupUser", "Cleared previous user data");
     }
 }

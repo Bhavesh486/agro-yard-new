@@ -10,7 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.projects.agroyard.R;
-import com.projects.agroyard.fragments.HomeFragment.MarketInsight;
+import com.projects.agroyard.model.MarketInsight;
 import java.util.List;
 
 public class MarketInsightAdapter extends RecyclerView.Adapter<MarketInsightAdapter.ViewHolder> {

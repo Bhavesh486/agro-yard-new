@@ -26,6 +26,11 @@ public class About extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
+        // Set back button click listener
+        view.findViewById(R.id.back_button).setOnClickListener(v -> {
+            requireActivity().getSupportFragmentManager().popBackStack();
+        });
+
         populateData(view);
     }
 

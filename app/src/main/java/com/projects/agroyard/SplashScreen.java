@@ -3,6 +3,7 @@ package com.projects.agroyard;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -33,13 +34,13 @@ public class SplashScreen extends AppCompatActivity {
         tagline.setVisibility(View.INVISIBLE);
 
         // Apply fade-in animation to the tagline after a delay
-        new Handler().postDelayed(() -> {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
             Animation fadeIn = AnimationUtils.loadAnimation(this, R.anim.fade_in);
             tagline.startAnimation(fadeIn);
             tagline.setVisibility(View.VISIBLE);
         }, Constants.TAGLINE_DELAY);
 
-        new Handler().postDelayed(() -> {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
             Intent intent = new Intent(SplashScreen.this, MainActivity.class);
             startActivity(intent);
             finish();

@@ -30,6 +30,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    
+    // Add tasks.withType to show deprecation warnings
+    tasks.withType<JavaCompile> {
+        options.compilerArgs.add("-Xlint:deprecation")
+    }
 }
 
 dependencies {
@@ -43,15 +48,25 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
-    implementation("com.google.firebase:firebase-auth:23.0.0")
+    
+    // Using the Firebase dependencies from the version catalog
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.database)
+    implementation(libs.firebase.firestore)
+    
+    // If you prefer to specify versions directly, uncomment these lines:
+    // implementation("com.google.firebase:firebase-auth:22.3.0")
+    // implementation("com.google.firebase:firebase-firestore:24.9.1")
+    
     implementation ("com.github.bumptech.glide:glide:4.12.0")
     implementation ("androidx.recyclerview:recyclerview:1.2.1")
     implementation ("androidx.transition:transition:1.4.1")
     implementation ("com.google.android.material:material:1.9.0")
     implementation ("androidx.viewpager2:viewpager2:1.0.0")
+    implementation ("com.android.volley:volley:1.2.1")
 
-    implementation(libs.firebase.auth)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+    
 }

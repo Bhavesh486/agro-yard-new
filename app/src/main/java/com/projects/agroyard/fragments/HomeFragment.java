@@ -1,36 +1,43 @@
 package com.projects.agroyard.fragments;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.os.Handler;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.GridLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.cardview.widget.CardView;
 import androidx.fragment.app.Fragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.viewpager2.widget.ViewPager2;
+import androidx.fragment.app.FragmentTransaction;
 import com.projects.agroyard.R;
 import com.projects.agroyard.adapters.ImageCarouselAdapter;
-import com.projects.agroyard.adapters.MarketInsightAdapter;
-import com.projects.agroyard.adapters.TransactionAdapter;
-
+import com.projects.agroyard.constants.Constants;
 import com.projects.agroyard.model.Slide;
 import java.util.ArrayList;
 import java.util.List;
 
-
-
 public class HomeFragment extends Fragment {
-    private ViewPager2 imageCarousel;
-    private RecyclerView marketInsightsRecyclerView;
-    private RecyclerView transactionsRecyclerView;
-    private List<Slide> slideList;
-    private List<MarketInsight> insightsList;
-    private List<Transaction> transactionsList;
-    private Handler sliderHandler = new Handler();
-    private int currentPage = 0;
+    private static final String PREFS_NAME = "UserPrefs";
+    private static final String KEY_USER_TYPE = "userType";
+    
+    private TextView welcomeText;
+    private TextView temperatureText;
+    private TextView humidityText;
+    private TextView windText;
+    private TextView recommendedCropsText;
+    private View notificationIconContainer;
+    private TextView notificationBadge;
+    private GridLayout categoryGrid;
+    
+    private String userType;
+    private String userName;
 
     public HomeFragment() {
         // Required empty public constructor
@@ -45,130 +52,165 @@ public class HomeFragment extends Fragment {
         return fragment;
     }
 
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Get user type from SharedPreferences
+        SharedPreferences prefs = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        userType = prefs.getString(KEY_USER_TYPE, Constants.FARMER); // Default to Farmer if not set
+        userName = prefs.getString("userName", "User"); // Default to "User" if not set
+        
+        // Debug log for user type
+        Log.d("HomeFragment", "User Type: " + userType + ", User Name: " + userName);
+    }
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_home, container, false);
+        
+        // Initialize views
+        welcomeText = view.findViewById(R.id.welcome_text);
+        temperatureText = view.findViewById(R.id.temperature_text);
+        humidityText = view.findViewById(R.id.humidity_text);
+        windText = view.findViewById(R.id.wind_text);
+        recommendedCropsText = view.findViewById(R.id.recommended_crops_text);
+        notificationIconContainer = view.findViewById(R.id.notification_icon_container);
+        notificationBadge = view.findViewById(R.id.notification_badge);
+        categoryGrid = view.findViewById(R.id.category_grid);
 
-        imageCarousel = view.findViewById(R.id.image_carousel);
-        setupCarousel();
+        // Set weather information
+        temperatureText.setText("Temperature: 28°C");
+        humidityText.setText("Humidity: 65%");
+        windText.setText("Wind: 12 km/h");
+        recommendedCropsText.setText("Recommended Crops:\n• Wheat\n• Rice\n• Tomatoes");
+        
+        // Set notification count
+        updateNotificationBadge(3);
+        
+        // Add notification click listener
+        notificationIconContainer.setOnClickListener(v -> {
+            showNotifications();
+        });
+        
+        // Set click listener for profile icon
+        view.findViewById(R.id.profile_icon).setOnClickListener(v -> {
+            navigateToFragment(new ProfileFragment());
+        });
 
-        marketInsightsRecyclerView = view.findViewById(R.id.market_insights_recycler);
-        setupMarketInsights();
-
-        transactionsRecyclerView = view.findViewById(R.id.transactions_recycler);
-        setupTransactions();
-
+        // Configure UI based on user type
+        configureUIForUserType(view);
+        
         return view;
     }
-
-    private void setupCarousel() {
-        slideList = new ArrayList<>();
-        slideList.add(new Slide(1, "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcRr0houfdpryn28NOIRl14_NgVxHLTWdpnfNnrAoa1nVsZ50bjd",
-                "Fresh Harvest Season", "Connect with local farmers for best deals"));
-        slideList.add(new Slide(2, "https://as1.ftcdn.net/jpg/02/72/67/96/1000_F_272679686_2VEUdZ69f0ZtXXyGBbPJcoxi8BAd4ikw.webp",
-                "Market Analytics", "Get real-time crop pricing and forecasts"));
-        slideList.add(new Slide(3, "https://images.moneycontrol.com/static-mcnews/2018/02/crops-1-770x433.jpg?impolicy=website&width=770&height=431",
-                "Fast Delivery", "Farm to market in under 24 hours"));
-
-        ImageCarouselAdapter carouselAdapter = new ImageCarouselAdapter(slideList, getContext());
-        imageCarousel.setAdapter(carouselAdapter);
-
-        startAutoScroll();
-    }
-
-    private void setupMarketInsights() {
-        insightsList = new ArrayList<>();
-        insightsList.add(new MarketInsight("Wheat", "₹240.50/ton", "2.5",
-                "https://images.unsplash.com/photo-1574323347407-f5e1c5a1ec1a?w=200&q=80",
-                "Expected to rise due to seasonal demand"));
-        insightsList.add(new MarketInsight("Rice", "₹350.75/ton", "-1.2",
-                "https://images.unsplash.com/photo-1586201375761-83865001e8dd?w=200&q=80",
-                "Slight decrease due to oversupply"));
-
-        MarketInsightAdapter insightAdapter = new MarketInsightAdapter(insightsList, getContext());
-        marketInsightsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        marketInsightsRecyclerView.setAdapter(insightAdapter);
-    }
-
-    private void setupTransactions() {
-        transactionsList = new ArrayList<>();
-        transactionsList.add(new Transaction("Wheat Sale", "₹1,200.00", "5 tons", "credit"));
-        transactionsList.add(new Transaction("Fertilizer Purchase", "₹450.00", "10 bags", "debit"));
-
-        TransactionAdapter transactionAdapter = new TransactionAdapter(transactionsList, getContext());
-        transactionsRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        transactionsRecyclerView.setAdapter(transactionAdapter);
-    }
-
-    private void startAutoScroll() {
-        final Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                if (currentPage == slideList.size()) {
-                    currentPage = 0;
-                }
-                imageCarousel.setCurrentItem(currentPage++, true);
-                sliderHandler.postDelayed(this, 5000);
-            }
-        };
-        sliderHandler.postDelayed(runnable, 5000);
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        sliderHandler.removeCallbacksAndMessages(null);
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        startAutoScroll();
-    }
-
-    // Inner class for MarketInsight with getters
-    public class MarketInsight {
-        private String cropName;        // Made private
-        private String price;
-        private String changePercentage;
-        private String imageUrl;
-        private String description;
-
-        public MarketInsight(String cropName, String price, String changePercentage, String imageUrl, String description) {
-            this.cropName = cropName;
-            this.price = price;
-            this.changePercentage = changePercentage;
-            this.imageUrl = imageUrl;
-            this.description = description;
+    
+    private void configureUIForUserType(View view) {
+        // Set welcome message based on user type
+        welcomeText.setText("Welcome, " + (userType.equals(Constants.MEMBER) ? 
+                                        userName + " Member" : 
+                                        "Farmer " + userName));
+        
+        // Clear existing UI elements from the grid
+        categoryGrid.removeAllViews();
+        
+        // Inflate the appropriate UI elements based on user type
+        if (userType.equals(Constants.FARMER)) {
+            setupFarmerUI(view);
+        } else if (userType.equals(Constants.MEMBER)) {
+            setupMemberUI(view);
         }
-
-        // Public getters
-        public String getCropName() { return cropName; }
-        public String getPrice() { return price; }
-        public String getChangePercentage() { return changePercentage; }
-        public String getImageUrl() { return imageUrl; }
-        public String getDescription() { return description; }
+    }
+    
+    private void setupFarmerUI(View view) {
+        // Add Crop Info card
+        addCategoryCard(R.drawable.ic_file_text, "Crop Info", R.drawable.circle_primary_light, 
+                v -> navigateToFragment(new CropInfoFragment()));
+        
+        // Add Bid Monitor card
+        addCategoryCard(R.drawable.ic_bid_monitor, "Bid Monitor", R.drawable.circle_green_light, 
+                v -> navigateToFragment(new BidMonitorFragment()));
+        
+        // Add Upload Product card
+        addCategoryCard(R.drawable.ic_upload_product, "Upload Product", R.drawable.circle_blue_light, 
+                v -> navigateToFragment(new UploadProductFragment()));
+        
+        // Add Receive Delivery card
+        addCategoryCard(R.drawable.ic_truck, "Receive Delivery", R.drawable.circle_yellow_light, 
+                v -> navigateToFragment(new DeliveryFragment()));
+    }
+    
+    private void setupMemberUI(View view) {
+        // Add Products card
+        addCategoryCard(R.drawable.ic_products, "Products", R.drawable.circle_yellow_light, 
+                v -> navigateToFragment(new ProductsFragment()));
+        
+        // Add Betting card
+        addCategoryCard(R.drawable.ic_betting, "Betting", R.drawable.circle_orange_light, 
+                v -> navigateToFragment(new BettingFragment()));
+        
+        // Add Payment card
+        addCategoryCard(R.drawable.ic_payment, "Payment", R.drawable.circle_blue_light, 
+                v -> navigateToFragment(new PaymentFragment()));
+        
+        // Add Delivery card
+        addCategoryCard(R.drawable.ic_delivery, "Delivery", R.drawable.circle_primary_light, 
+                v -> navigateToFragment(new DeliveryFragment()));
+    }
+    
+    private void addCategoryCard(int iconResourceId, String title, int backgroundResourceId, View.OnClickListener clickListener) {
+        CardView cardView = (CardView) getLayoutInflater().inflate(R.layout.item_category_card, categoryGrid, false);
+        
+        // Configure the card
+        ImageView iconView = cardView.findViewById(R.id.category_icon);
+        TextView titleView = cardView.findViewById(R.id.category_title);
+        View iconBackground = cardView.findViewById(R.id.icon_background);
+        
+        iconView.setImageResource(iconResourceId);
+        titleView.setText(title);
+        iconBackground.setBackgroundResource(backgroundResourceId);
+        
+        // Set click listener
+        cardView.setOnClickListener(clickListener);
+        
+        // Add parameters for grid layout
+        GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+        params.width = 0;
+        params.height = GridLayout.LayoutParams.WRAP_CONTENT;
+        params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+        params.rowSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+        params.setMargins(8, 8, 8, 8);
+        
+        cardView.setLayoutParams(params);
+        
+        // Add to the grid
+        categoryGrid.addView(cardView);
+    }
+    
+    /**
+     * Updates the notification badge count
+     * If count is 0, hides the badge
+     */
+    private void updateNotificationBadge(int count) {
+        if (count > 0) {
+            notificationBadge.setVisibility(View.VISIBLE);
+            notificationBadge.setText(String.valueOf(count));
+        } else {
+            notificationBadge.setVisibility(View.GONE);
+        }
+    }
+    
+    /**
+     * Shows the notifications screen
+     */
+    private void showNotifications() {
+        // Navigate to the NotificationsFragment
+        navigateToFragment(new NotificationsFragment());
     }
 
-    // Inner class for Transaction with getters
-    public class Transaction {
-        private String transactionName;  // Made private
-        private String amount;
-        private String quantity;
-        private String type;
-
-        public Transaction(String transactionName, String amount, String quantity, String type) {
-            this.transactionName = transactionName;
-            this.amount = amount;
-            this.quantity = quantity;
-            this.type = type;
-        }
-
-        // Public getters
-        public String getTransactionName() { return transactionName; }
-        public String getAmount() { return amount; }
-        public String getQuantity() { return quantity; }
-        public String getType() { return type; }
+    private void navigateToFragment(Fragment fragment) {
+        FragmentTransaction transaction = requireActivity().getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragment_container, fragment);
+        transaction.addToBackStack(null);
+        transaction.commit();
     }
 }
