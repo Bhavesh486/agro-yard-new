@@ -1,0 +1,83 @@
+-- phpMyAdmin SQL Dump
+-- version 4.9.0.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: sql210.infinityfree.com
+-- Generation Time: Apr 12, 2025 at 11:14 PM
+-- Server version: 10.6.19-MariaDB
+-- PHP Version: 7.2.22
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET AUTOCOMMIT = 0;
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Database: `if0_38457966_agro_yard`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `products`
+--
+
+CREATE TABLE `products` (
+  `id` int(11) NOT NULL,
+  `farmer_name` varchar(100) NOT NULL,
+  `farmer_mobile` varchar(15) NOT NULL,
+  `product_name` varchar(100) NOT NULL,
+  `harvesting_date` date NOT NULL,
+  `farming_type` varchar(50) NOT NULL,
+  `quantity` decimal(10,2) NOT NULL,
+  `price` decimal(10,2) NOT NULL,
+  `expected_price` decimal(10,2) NOT NULL,
+  `description` text DEFAULT NULL,
+  `image_path` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `products`
+--
+
+INSERT INTO `products` (`id`, `farmer_name`, `farmer_mobile`, `product_name`, `harvesting_date`, `farming_type`, `quantity`, `price`, `expected_price`, `description`, `image_path`, `created_at`) VALUES
+(1, 'df', '1025478963', 'applw', '2025-04-07', 'Natural', '200.00', '15.00', '10000.00', 'good', 'uploads/67f3fff0d7f43.jpg', '2025-04-07 16:40:16'),
+(2, 'roy', '9809709870', 'orange', '2025-04-08', 'Organic', '700.00', '65.00', '20000.00', 'nice and good', 'uploads/67f42d5568d9a.jpg', '2025-04-07 19:53:57'),
+(3, 'FFG', '1023654789', 'APPLE', '2025-04-08', 'Organic', '200.00', '45.00', '32220.00', 'good', 'uploads/67f4ef954233d.jpg', '2025-04-08 09:42:45'),
+(4, 'sunny', '9635821470', 'apple', '2025-04-08', 'Organic', '1000.00', '45.00', '20000.00', 'good', 'uploads/67f50167aedb7.jpg', '2025-04-08 10:58:47'),
+(5, 'isia', '9568327150', 'veg', '2025-04-09', 'Natural', '500.00', '45.00', '2000.00', 'yet', 'uploads/67f612c08d7c3.jpg', '2025-04-09 06:25:04'),
+(6, 'aa', '1236547890', 'hg', '2025-04-10', 'Organic', '200.00', '45.00', '2000.00', 'gy', 'uploads/67f7660044cc2.jpg', '2025-04-10 06:32:32'),
+(7, 'app', '1236547890', 'apple', '2025-04-03', 'Organic', '200.00', '145.00', '2000.00', 'wold', 'uploads/67f8ba1cddea3.jpg', '2025-04-11 06:43:40'),
+(8, 'sam', '3698521470', 'apple', '2025-04-11', 'Organic', '1000.00', '41.00', '2000.00', 'g', 'uploads/67f8d63653194.jpg', '2025-04-11 08:43:34');
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `products`
+--
+ALTER TABLE `products`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `products`
+--
+ALTER TABLE `products`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
