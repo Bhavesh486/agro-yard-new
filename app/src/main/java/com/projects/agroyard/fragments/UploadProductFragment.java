@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -57,11 +58,15 @@ public class UploadProductFragment extends Fragment {
     private ImageView productImageView;
     private FrameLayout imageUploadFrame;
     private Button listProductButton;
+    private CheckBox registerForBiddingCheckbox;
     
+    // Add flag for auto-registering product for bidding
+    private boolean registerForBidding = true;
+
     private Uri selectedImageUri;
     private Calendar myCalendar = Calendar.getInstance();
     private final OkHttpClient client = new OkHttpClient();
-    private static final String API_URL = "http://10.0.2.2/agroyard/api/upload_product.php"; //  pc i Use 10.0.2.2 for Android emulator
+    private static final String API_URL = "http://agroyard.42web.io/agroyard/api/upload_product.php"; // Replace X with your PC's IP
     
     private final ActivityResultLauncher<String> imagePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -104,6 +109,12 @@ public class UploadProductFragment extends Fragment {
         productImageView = view.findViewById(R.id.product_image_view);
         imageUploadFrame = view.findViewById(R.id.image_upload_frame);
         listProductButton = view.findViewById(R.id.list_product_button);
+        registerForBiddingCheckbox = view.findViewById(R.id.register_for_bidding_checkbox);
+        
+        // Set checkbox change listener
+        registerForBiddingCheckbox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            registerForBidding = isChecked;
+        });
     }
     
     private void setupDatePicker() {
@@ -222,6 +233,7 @@ public class UploadProductFragment extends Fragment {
             jsonObject.put("expected_price", Double.parseDouble(expectedPriceInput.getText().toString().trim()));
             jsonObject.put("description", descriptionInput.getText().toString().trim());
             jsonObject.put("image_base64", imageBase64);
+            jsonObject.put("register_for_bidding", registerForBidding); // Add field to register for bidding
 
             // Create request
             RequestBody body = RequestBody.create(

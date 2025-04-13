@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.GridLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -144,8 +145,8 @@ public class HomeFragment extends Fragment {
         addCategoryCard(R.drawable.ic_products, "Products", R.drawable.circle_yellow_light, 
                 v -> navigateToFragment(new ProductsFragment()));
         
-        // Add Betting card
-        addCategoryCard(R.drawable.ic_betting, "Betting", R.drawable.circle_orange_light, 
+        // Add Betting card with extra prominence
+        addCategoryCard(R.drawable.ic_betting, "Active Bidding", R.drawable.circle_red_light, 
                 v -> navigateToFragment(new BettingFragment()));
         
         // Add Payment card

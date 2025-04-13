@@ -19,7 +19,7 @@ import okhttp3.Response;
  */
 public class ImageHelper {
     private static final String TAG = "ImageHelper";
-    private static final String CHECK_IMAGE_URL = "http://10.0.2.2/agroyard/api/check_image.php?filename=";
+    private static final String CHECK_IMAGE_URL = "http://agroyard.42web.io/agroyard/api/check_image.php?filename=";
     private static final OkHttpClient client = new OkHttpClient();
     
     /**
@@ -92,7 +92,7 @@ public class ImageHelper {
         if (filename == null || filename.isEmpty()) {
             return null;
         }
-        return "http://10.0.2.2/agroyard/api/uploads/" + filename;
+        return "http://agroyard.42web.io/agroyard/api/uploads/" + filename;
     }
     
     /**

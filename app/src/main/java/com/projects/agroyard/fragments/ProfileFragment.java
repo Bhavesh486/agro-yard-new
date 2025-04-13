@@ -228,8 +228,12 @@ public class ProfileFragment extends Fragment {
     }
     
     private void showAbout() {
-        // Show About dialog or navigate to About fragment
-        Toast.makeText(requireContext(), "Agro-Yard v1.0\nDeveloped by AgroTech Solutions", Toast.LENGTH_SHORT).show();
+        // Navigate to About fragment
+        Fragment aboutFragment = new About();
+        FragmentTransaction transaction = requireActivity().getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragment_container, aboutFragment);
+        transaction.addToBackStack(null);
+        transaction.commit();
     }
     
     private void logOut() {

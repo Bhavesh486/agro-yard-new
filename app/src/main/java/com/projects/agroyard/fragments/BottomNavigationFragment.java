@@ -49,6 +49,11 @@ public class BottomNavigationFragment extends Fragment {
             bottomNavigationView.getMenu().findItem(R.id.n_payment).setTitle(R.string.payment_history);
         } else {
             bottomNavigationView.getMenu().findItem(R.id.n_payment).setTitle(R.string.payment);
+            
+            // For Member users, show the bidding menu option
+            if (userType.equals(Constants.MEMBER)) {
+                bottomNavigationView.getMenu().findItem(R.id.n_bidding).setVisible(true);
+            }
         }
         
         bottomNavigationView.setOnItemSelectedListener(navListener);
@@ -77,6 +82,9 @@ public class BottomNavigationFragment extends Fragment {
                     } else {
                         selectedFragment = new PaymentFragment();
                     }
+                } else if (itemId == R.id.n_bidding) {
+                    // Show bidding fragment for member users
+                    selectedFragment = new BettingFragment();
                 }
 
                 if (selectedFragment != null) {

@@ -161,6 +161,18 @@
                     android:layout_marginBottom="12dp"
                     />
 
+                <!-- Address (Only for Members) -->
+                <EditText
+                    android:id="@+id/addressInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Address"
+                    android:textColor="@color/black"
+                    android:textColorHint="@color/textSecondary"
+                    android:padding="12dp"
+                    android:background="@drawable/input_field_bg"
+                    android:layout_marginBottom="12dp"/>
+
                 <!-- Market Name (Only for Members) -->
                 <EditText
                     android:id="@+id/marketName"

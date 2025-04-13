@@ -39,10 +39,11 @@ public class ProductDetailFragment extends Fragment {
     private static final String ARG_IMAGE_URL = "image_url";
     private static final String ARG_IMAGE_PATH = "image_path";
     private static final String ARG_IMAGE_FILENAME = "image_filename";
+    private static final String ARG_REGISTER_FOR_BIDDING = "register_for_bidding";
     
     private static final String TAG = "ProductDetailFragment";
     // Base URL for emulator to access images on localhost
-    private static final String EMULATOR_BASE_URL = "http://10.0.2.2/agroyard/api/uploads/";
+    private static final String EMULATOR_BASE_URL = "http://agroyard.42web.io/agroyard/api/uploads/";
 
     // UI elements
     private ImageView productImage;
@@ -56,6 +57,8 @@ public class ProductDetailFragment extends Fragment {
     private TextView expectedPriceText;
     private TextView descriptionText;
     private Button callFarmerButton;
+    private Button placeBidButton;
+    private View bidButtonContainer;
 
     public static ProductDetailFragment newInstance(Product product) {
         ProductDetailFragment fragment = new ProductDetailFragment();
@@ -73,6 +76,7 @@ public class ProductDetailFragment extends Fragment {
         args.putString(ARG_IMAGE_URL, product.getImageUrl());
         args.putString(ARG_IMAGE_PATH, product.getImagePath());
         args.putString(ARG_IMAGE_FILENAME, product.getImageFilename());
+        args.putBoolean(ARG_REGISTER_FOR_BIDDING, product.isRegisterForBidding());
         fragment.setArguments(args);
         return fragment;
     }
@@ -100,6 +104,8 @@ public class ProductDetailFragment extends Fragment {
         expectedPriceText = view.findViewById(R.id.detail_expected_price);
         descriptionText = view.findViewById(R.id.detail_description);
         callFarmerButton = view.findViewById(R.id.call_farmer_button);
+        placeBidButton = view.findViewById(R.id.place_bid_button);
+        bidButtonContainer = view.findViewById(R.id.bid_button_container);
     }
 
     private void populateProductDetails() {
@@ -131,7 +137,7 @@ public class ProductDetailFragment extends Fragment {
         
         // Try image_path first
         if (imagePath != null && !imagePath.isEmpty()) {
-            String fullUrl = "http://10.0.2.2/agroyard/api/" + imagePath;
+            String fullUrl = "http://agroyard.42web.io/agroyard/api/" + imagePath;
             Log.d(TAG, "Loading from image_path: " + fullUrl);
             loadWithGlide(fullUrl, "image_path");
         }
@@ -155,6 +161,31 @@ public class ProductDetailFragment extends Fragment {
                 Toast.makeText(getContext(), "Farmer contact number not available", Toast.LENGTH_SHORT).show();
             }
         });
+
+        // Setup bidding button based on register_for_bidding flag
+        boolean isRegisteredForBidding = args.getBoolean(ARG_REGISTER_FOR_BIDDING, true);
+        if (isRegisteredForBidding) {
+            placeBidButton.setVisibility(View.VISIBLE);
+            placeBidButton.setOnClickListener(v -> {
+                // Navigate to BettingFragment with product info
+                Fragment bettingFragment = new BettingFragment();
+                Bundle bidArgs = new Bundle();
+                bidArgs.putInt("product_id", args.getInt(ARG_PRODUCT_ID));
+                bidArgs.putString("product_name", args.getString(ARG_PRODUCT_NAME));
+                bidArgs.putDouble("product_price", args.getDouble(ARG_PRICE));
+                bidArgs.putDouble("product_quantity", args.getDouble(ARG_QUANTITY));
+                bidArgs.putString("farmer_name", args.getString(ARG_FARMER_NAME));
+                bidArgs.putString("image_path", args.getString(ARG_IMAGE_PATH));
+                bettingFragment.setArguments(bidArgs);
+
+                getParentFragmentManager().beginTransaction()
+                    .replace(R.id.fragment_container, bettingFragment)
+                    .addToBackStack(null)
+                    .commit();
+            });
+        } else {
+            placeBidButton.setVisibility(View.GONE);
+        }
     }
 
     private void loadWithGlide(String imageUrl, String source) {

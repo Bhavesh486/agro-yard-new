@@ -12,4 +12,9 @@
         android:id="@+id/n_payment"
         android:icon="@drawable/credit_card"
         android:title="Payment" />
+    <item
+        android:id="@+id/n_bidding"
+        android:icon="@drawable/credit_card"
+        android:title="Bidding"
+        android:visible="false" />
 </menu>

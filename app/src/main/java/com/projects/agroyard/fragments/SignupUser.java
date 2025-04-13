@@ -72,6 +72,7 @@ public class SignupUser extends Fragment {
         EditText confirmPasswordInput = view.findViewById(R.id.confirmPasswordInput);
         EditText marketName = view.findViewById(R.id.marketName);
         EditText marketId = view.findViewById(R.id.marketId);
+        EditText addressInput = view.findViewById(R.id.addressInput);
         Spinner userTypeSpinner = view.findViewById(R.id.userTypeSpinner);
         Spinner stateSpinner = view.findViewById(R.id.stateSpinner);
         Spinner districtSpinner = view.findViewById(R.id.districtSpinner);
@@ -122,9 +123,18 @@ public class SignupUser extends Fragment {
                 return;
             }
             
+            // Get address and validate it's not empty
+            String addressStr = addressInput.getText().toString().trim();
+            if (addressStr.isEmpty()) {
+                Toast.makeText(getContext(), "Please enter your address", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            
             // Validate Market ID for Member user type
             String marketNameStr = "";
             String marketIdStr = "";
+             
             if (userType.equals(Constants.MEMBER)) {
                 marketNameStr = marketName.getText().toString().trim();
                 marketIdStr = marketId.getText().toString().trim();
@@ -144,6 +154,9 @@ public class SignupUser extends Fragment {
             userData.put("state", state);
             userData.put("district", district);
             userData.put("createdAt", System.currentTimeMillis());
+            
+            // Save address for all users (will be empty for non-members)
+            userData.put("address", addressStr);
             
             // Add market details if user is a member
             if (userType.equals(Constants.MEMBER)) {
@@ -250,6 +263,7 @@ public class SignupUser extends Fragment {
 
         TextView marketName = view.findViewById(R.id.marketName);
         EditText marketId = view.findViewById(R.id.marketId);
+        EditText addressInput = view.findViewById(R.id.addressInput);
         Spinner userTypeSpinner = view.findViewById(R.id.userTypeSpinner);
 
         userTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {

@@ -110,7 +110,7 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ProductV
             // Try to load the image using the image path
             if (imagePath != null && !imagePath.isEmpty()) {
                 // Construct direct URL using the image path
-                String imageUrl = "http://10.0.2.2/agroyard/api/" + imagePath;
+                String imageUrl = "http://agroyard.42web.io/agroyard/api/" + imagePath;
                 Log.d("ProductAdapter", "Loading from constructed URL: " + imageUrl);
                 loadWithGlide(imageUrl, "image_path");
             } 

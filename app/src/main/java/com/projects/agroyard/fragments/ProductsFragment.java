@@ -38,7 +38,7 @@ public class ProductsFragment extends Fragment {
     private ProductAdapter productAdapter;
     private SwipeRefreshLayout swipeRefreshLayout;
     private List<Product> productList = new ArrayList<>();
-    private static final String API_URL = "http://10.0.2.2/agroyard/api/get_products.php";
+    private static final String API_URL = "http://agroyard.42web.io/agroyard/api/get_products.php";
 
     @Nullable
     @Override
@@ -221,4 +221,4 @@ public class ProductsFragment extends Fragment {
             .addToBackStack(null)
             .commit();
     }
-}
+} 

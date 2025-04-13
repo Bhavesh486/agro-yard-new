@@ -2,123 +2,306 @@ package com.projects.agroyard.fragments;
 
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.bumptech.glide.Glide;
 import com.projects.agroyard.R;
+import com.projects.agroyard.models.Product;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class BettingFragment extends Fragment {
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
-    private EditText tomatoBidInput;
-    private Button tomatoBidButton;
-    private TextView tomatoYourBidText;
-    private TextView tomatoTimerText;
+public class BettingFragment extends Fragment {
+    private static final String TAG = "BettingFragment";
     
-    private EditText wheatBidInput;
-    private Button wheatBidButton;
-    private TextView wheatYourBidText;
-    private TextView wheatTimerText;
+    private LinearLayout productCardsContainer;
+    private SwipeRefreshLayout swipeRefreshLayout;
     
     private static final long INITIAL_BIDDING_TIME = 45000; // 45 seconds in milliseconds
     private static final long SUBSEQUENT_BIDDING_TIME = 10000; // 10 seconds in milliseconds
     private static final float MINIMUM_BID_INCREMENT = 1.0f; // Minimum bid increment in rupees
     
     // Maps to track product-specific timers, bid status, and bids
-    private Map<String, CountDownTimer> productTimers = new HashMap<>();
-    private Map<String, Boolean> productBidStatus = new HashMap<>();
-    private Map<String, Boolean> productBiddingActive = new HashMap<>();
+    private Map<Integer, CountDownTimer> productTimers = new HashMap<>();
+    private Map<Integer, Boolean> productBidStatus = new HashMap<>();
+    private Map<Integer, Boolean> productBiddingActive = new HashMap<>();
+    private Map<Integer, TextView> productTimerViews = new HashMap<>();
+    private Map<Integer, EditText> productBidInputs = new HashMap<>();
+    private Map<Integer, TextView> productYourBidViews = new HashMap<>();
     
-    // Product identifiers
-    private static final String TOMATO = "tomato";
-    private static final String WHEAT = "wheat";
+    private List<Product> productList = new ArrayList<>();
+    private static final String API_URL = "http://agroyard.42web.io/agroyard/api/get_products.php"; // Replace X with your PC's IP
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_betting, container, false);
+        View view = inflater.inflate(R.layout.fragment_betting_new, container, false);
         
         // Initialize views
-        tomatoBidInput = view.findViewById(R.id.tomato_bid_input);
-        tomatoBidButton = view.findViewById(R.id.tomato_bid_button);
-        tomatoYourBidText = view.findViewById(R.id.tomato_your_bid_text);
-        tomatoTimerText = view.findViewById(R.id.tomato_timer);
+        productCardsContainer = view.findViewById(R.id.product_cards_container);
+        swipeRefreshLayout = view.findViewById(R.id.swipe_refresh_layout);
         
-        wheatBidInput = view.findViewById(R.id.wheat_bid_input);
-        wheatBidButton = view.findViewById(R.id.wheat_bid_button);
-        wheatYourBidText = view.findViewById(R.id.wheat_your_bid_text);
-        wheatTimerText = view.findViewById(R.id.wheat_timer);
+        // Setup SwipeRefreshLayout
+        swipeRefreshLayout.setOnRefreshListener(this::fetchBiddableProducts);
         
-        // Initialize timer displays
-        tomatoTimerText.setText("00:45");
-        wheatTimerText.setText("00:45");
-        
-        // Initialize bid status
-        productBidStatus.put(TOMATO, false);
-        productBidStatus.put(WHEAT, false);
-        
-        // Initialize bidding active status
-        productBiddingActive.put(TOMATO, false);
-        productBiddingActive.put(WHEAT, false);
-        
-        // Set up bid button listeners
-        tomatoBidButton.setOnClickListener(v -> {
-            String bidAmount = tomatoBidInput.getText().toString().trim();
-            if (!bidAmount.isEmpty()) {
-                placeBid("Fresh Tomatoes", "₹" + bidAmount, tomatoYourBidText);
-                productBidStatus.put(TOMATO, true);
-                
-                // Start or restart the tomato bidding session
-                startBiddingSession(TOMATO, INITIAL_BIDDING_TIME);
-            } else {
-                Toast.makeText(requireContext(), "Please enter a bid amount", Toast.LENGTH_SHORT).show();
-            }
-        });
-        
-        wheatBidButton.setOnClickListener(v -> {
-            String bidAmount = wheatBidInput.getText().toString().trim();
-            if (!bidAmount.isEmpty()) {
-                placeBid("Organic Wheat", "₹" + bidAmount, wheatYourBidText);
-                productBidStatus.put(WHEAT, true);
-                
-                // Start or restart the wheat bidding session
-                startBiddingSession(WHEAT, INITIAL_BIDDING_TIME);
-            } else {
-                Toast.makeText(requireContext(), "Please enter a bid amount", Toast.LENGTH_SHORT).show();
-            }
-        });
+        // Fetch all products for bidding
+        fetchBiddableProducts();
         
         return view;
+    }
+    
+    private void fetchBiddableProducts() {
+        swipeRefreshLayout.setRefreshing(true);
+        
+        OkHttpClient client = new OkHttpClient.Builder()
+                .retryOnConnectionFailure(true)
+                .build();
+        
+        Request request = new Request.Builder()
+                .url(API_URL)
+                .build();
+                
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Network error: " + e.getMessage(), e);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        swipeRefreshLayout.setRefreshing(false);
+                        Toast.makeText(getContext(), "Error fetching products: " + e.getMessage(), 
+                            Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    Log.e(TAG, "HTTP error: " + response.code());
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            swipeRefreshLayout.setRefreshing(false);
+                            Toast.makeText(getContext(), "Error: " + response.code(), 
+                                Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                    return;
+                }
+
+                try {
+                    if (response.body() == null) {
+                        Log.e(TAG, "Empty response body");
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                swipeRefreshLayout.setRefreshing(false);
+                                Toast.makeText(getContext(), "Error: Empty response from server", 
+                                    Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                        return;
+                    }
+
+                    String responseData = response.body().string();
+                    Log.d(TAG, "API Response: " + responseData);
+                    
+                    JSONObject jsonResponse = new JSONObject(responseData);
+                    
+                    if (jsonResponse.getBoolean("success")) {
+                        JSONArray productsArray = jsonResponse.getJSONArray("products");
+                        List<Product> newProducts = new ArrayList<>();
+                        
+                        Log.d(TAG, "Found " + productsArray.length() + " products");
+                        
+                        for (int i = 0; i < productsArray.length(); i++) {
+                            JSONObject productJson = productsArray.getJSONObject(i);
+                            
+                            // Filter products that are registered for bidding
+                            boolean isForBidding = productJson.optBoolean("register_for_bidding", true);
+                            if (isForBidding) {
+                                newProducts.add(new Product(productJson));
+                            }
+                        }
+                        
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                productList.clear();
+                                productList.addAll(newProducts);
+                                displayProductsForBidding();
+                                swipeRefreshLayout.setRefreshing(false);
+                                
+                                if (newProducts.isEmpty()) {
+                                    Toast.makeText(getContext(), "No products available for bidding", 
+                                        Toast.LENGTH_SHORT).show();
+                                } else {
+                                    Log.d(TAG, "Loaded " + newProducts.size() + " products for bidding");
+                                }
+                            });
+                        }
+                    } else {
+                        final String errorMessage = jsonResponse.has("message") ? 
+                            jsonResponse.optString("message", "Unknown error") : "Unknown error";
+                        
+                        Log.e(TAG, "API error: " + errorMessage);
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                swipeRefreshLayout.setRefreshing(false);
+                                Toast.makeText(getContext(), 
+                                    "Error: " + errorMessage, 
+                                    Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                    }
+                } catch (JSONException e) {
+                    Log.e(TAG, "JSON parsing error: " + e.getMessage(), e);
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            swipeRefreshLayout.setRefreshing(false);
+                            Toast.makeText(getContext(), 
+                                "Error parsing data: " + e.getMessage(), 
+                                Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                }
+            }
+        });
+    }
+    
+    private void displayProductsForBidding() {
+        // Clear existing views and timer maps
+        productCardsContainer.removeAllViews();
+        productTimerViews.clear();
+        productBidInputs.clear();
+        productYourBidViews.clear();
+        
+        // Cancel all running timers
+        for (CountDownTimer timer : productTimers.values()) {
+            if (timer != null) {
+                timer.cancel();
+            }
+        }
+        productTimers.clear();
+        
+        // Add product cards for each product
+        for (Product product : productList) {
+            View productCard = createProductBidCard(product);
+            productCardsContainer.addView(productCard);
+            
+            // Initialize bid status
+            int productId = product.getId();
+            productBidStatus.put(productId, false);
+            productBiddingActive.put(productId, false);
+            
+            // Start bidding session for this product
+            startBiddingSession(productId, INITIAL_BIDDING_TIME);
+        }
+    }
+    
+    private View createProductBidCard(Product product) {
+        LayoutInflater inflater = LayoutInflater.from(getContext());
+        View productCard = inflater.inflate(R.layout.item_product_bid_card, productCardsContainer, false);
+        
+        // Get views
+        TextView productNameView = productCard.findViewById(R.id.product_name);
+        TextView quantityView = productCard.findViewById(R.id.product_quantity);
+        TextView farmerView = productCard.findViewById(R.id.product_farmer);
+        TextView basePriceView = productCard.findViewById(R.id.product_base_price);
+        TextView currentBidView = productCard.findViewById(R.id.product_current_bid);
+        TextView yourBidView = productCard.findViewById(R.id.product_your_bid);
+        EditText bidInputView = productCard.findViewById(R.id.product_bid_input);
+        Button bidButton = productCard.findViewById(R.id.product_bid_button);
+        TextView timerView = productCard.findViewById(R.id.product_timer);
+        ImageView productImage = productCard.findViewById(R.id.product_image);
+        
+        // Store references to views we need to update
+        int productId = product.getId();
+        productTimerViews.put(productId, timerView);
+        productBidInputs.put(productId, bidInputView);
+        productYourBidViews.put(productId, yourBidView);
+        
+        // Set product info
+        productNameView.setText(product.getProductName());
+        quantityView.setText(String.format("Quantity: %.0fkg", product.getQuantity()));
+        farmerView.setText(String.format("Farmer: %s", product.getFarmerName()));
+        basePriceView.setText(String.format("Base Price: ₹%.0f/kg", product.getPrice()));
+        
+        // Set current bid slightly higher than base price
+        double currentBid = product.getPrice() + 2;
+        currentBidView.setText(String.format("₹%.0f/kg", currentBid));
+        
+        // Set initial your bid
+        yourBidView.setText("None/kg");
+        
+        // Load product image
+        String imagePath = product.getImagePath();
+        if (imagePath != null && !imagePath.isEmpty()) {
+            String fullImageUrl = "http://agroyard.42web.io/agroyard/api/" + imagePath;
+            Glide.with(this)
+                 .load(fullImageUrl)
+                 .placeholder(R.drawable.ic_image_placeholder)
+                 .error(R.drawable.ic_image_error)
+                 .into(productImage);
+        }
+        
+        // Set bid button listener
+        bidButton.setOnClickListener(v -> {
+            String bidAmount = bidInputView.getText().toString().trim();
+            if (!bidAmount.isEmpty()) {
+                placeBid(productId, product.getProductName(), "₹" + bidAmount, yourBidView);
+            } else {
+                Toast.makeText(requireContext(), "Please enter a bid amount", Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        return productCard;
     }
     
     /**
      * Start the bidding session for a specific product with specified time
      */
-    private void startBiddingSession(String product, long timeInMillis) {
-        productBiddingActive.put(product, true);
+    private void startBiddingSession(int productId, long timeInMillis) {
+        productBiddingActive.put(productId, true);
         
-        // Get the appropriate timer text view
-        TextView timerText = (product.equals(TOMATO)) ? tomatoTimerText : wheatTimerText;
+        // Get the timer text view
+        TextView timerText = productTimerViews.get(productId);
+        if (timerText == null) return;
         
         // Reset visual state for new bidding session
         timerText.setTextColor(getResources().getColor(android.R.color.holo_red_light));
         
         // Cancel existing timer if any
-        if (productTimers.containsKey(product) && productTimers.get(product) != null) {
-            productTimers.get(product).cancel();
+        if (productTimers.containsKey(productId) && productTimers.get(productId) != null) {
+            productTimers.get(productId).cancel();
         }
         
         // Create new timer
@@ -126,66 +309,96 @@ public class BettingFragment extends Fragment {
             @Override
             public void onTick(long millisUntilFinished) {
                 // Update the timer text
-                updateTimerText(product, millisUntilFinished);
+                updateTimerText(productId, millisUntilFinished);
             }
 
             @Override
             public void onFinish() {
                 // When timer completes
-                if (product.equals(TOMATO)) {
-                    tomatoTimerText.setText("00:00");
-                } else {
-                    wheatTimerText.setText("00:00");
+                if (timerText != null) {
+                    timerText.setText("00:00");
                 }
-                productBiddingActive.put(product, false);
-                
-                handleBiddingCompletion(product);
+                productBiddingActive.put(productId, false);
+                handleBiddingCompletion(productId);
             }
         }.start();
         
         // Store the timer
-        productTimers.put(product, timer);
+        productTimers.put(productId, timer);
         
-        String productName = (product.equals(TOMATO)) ? "Fresh Tomatoes" : "Organic Wheat";
-        Toast.makeText(requireContext(), "Bidding session started for " + productName + "! 45 seconds to bid.", Toast.LENGTH_SHORT).show();
+        // Find the product name
+        String productName = "";
+        for (Product product : productList) {
+            if (product.getId() == productId) {
+                productName = product.getProductName();
+                break;
+            }
+        }
+        
+        // Toast notification
+        Toast.makeText(requireContext(), 
+                "Bidding session started for " + productName + "! 45 seconds to bid.", 
+                Toast.LENGTH_SHORT).show();
     }
     
     /**
      * Reset bidding timer for a specific product to 10 seconds
      */
-    private void resetBiddingTimer(String product) {
-        if (productTimers.containsKey(product) && productTimers.get(product) != null) {
-            productTimers.get(product).cancel();
+    private void resetBiddingTimer(int productId) {
+        if (productTimers.containsKey(productId) && productTimers.get(productId) != null) {
+            productTimers.get(productId).cancel();
         }
         
-        startBiddingSession(product, SUBSEQUENT_BIDDING_TIME);
-        String productName = (product.equals(TOMATO)) ? "Fresh Tomatoes" : "Organic Wheat";
-        Toast.makeText(requireContext(), "Bidding extended for " + productName + " for 10 seconds!", Toast.LENGTH_SHORT).show();
+        startBiddingSession(productId, SUBSEQUENT_BIDDING_TIME);
+        
+        // Find the product name
+        String productName = "";
+        for (Product product : productList) {
+            if (product.getId() == productId) {
+                productName = product.getProductName();
+                break;
+            }
+        }
+        
+        Toast.makeText(requireContext(), 
+                "Bidding extended for " + productName + " for 10 seconds!", 
+                Toast.LENGTH_SHORT).show();
     }
     
     /**
      * Handle completion of bidding session for a specific product
      */
-    private void handleBiddingCompletion(String product) {
-        String productName = (product.equals(TOMATO)) ? "Fresh Tomatoes" : "Organic Wheat";
+    private void handleBiddingCompletion(int productId) {
+        // Find the product name
+        String productName = "";
+        for (Product product : productList) {
+            if (product.getId() == productId) {
+                productName = product.getProductName();
+                break;
+            }
+        }
         
-        if (!productBidStatus.get(product)) {
-            Toast.makeText(requireContext(), productName + " are sold out!", Toast.LENGTH_LONG).show();
+        if (productName.isEmpty()) return;
+        
+        if (!productBidStatus.getOrDefault(productId, false)) {
+            Toast.makeText(requireContext(), productName + " is sold out!", Toast.LENGTH_LONG).show();
         } else {
             Toast.makeText(requireContext(), "Bidding for " + productName + " ended!", Toast.LENGTH_LONG).show();
         }
         
-        disableBidding(product);
+        disableBidding(productId);
     }
     
     /**
      * Update the timer text with the remaining time for a specific product
      */
-    private void updateTimerText(String product, long millisUntilFinished) {
+    private void updateTimerText(int productId, long millisUntilFinished) {
         long seconds = TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) % 60;
         String timeLeftFormatted = String.format(Locale.getDefault(), "00:%02d", seconds);
         
-        TextView timerText = (product.equals(TOMATO)) ? tomatoTimerText : wheatTimerText;
+        TextView timerText = productTimerViews.get(productId);
+        if (timerText == null) return;
+        
         timerText.setText(timeLeftFormatted);
         
         // Change color to red when less than 10 seconds left
@@ -199,29 +412,49 @@ public class BettingFragment extends Fragment {
     /**
      * Disable bidding for a specific product when timer ends
      */
-    private void disableBidding(String product) {
-        if (product.equals(TOMATO)) {
-            // Disable tomato bidding
-            tomatoBidButton.setEnabled(false);
-            tomatoBidInput.setEnabled(false);
-            tomatoTimerText.setText("CLOSED");
-            tomatoTimerText.setTextColor(getResources().getColor(android.R.color.darker_gray));
-            Toast.makeText(requireContext(), "Bidding for Fresh Tomatoes is now closed.", Toast.LENGTH_SHORT).show();
-        } else {
-            // Disable wheat bidding
-            wheatBidButton.setEnabled(false);
-            wheatBidInput.setEnabled(false);
-            wheatTimerText.setText("CLOSED");
-            wheatTimerText.setTextColor(getResources().getColor(android.R.color.darker_gray));
-            Toast.makeText(requireContext(), "Bidding for Organic Wheat is now closed.", Toast.LENGTH_SHORT).show();
+    private void disableBidding(int productId) {
+        // Find the product views
+        EditText bidInput = productBidInputs.get(productId);
+        if (bidInput == null) return;
+        
+        TextView timerText = productTimerViews.get(productId);
+        if (timerText == null) return;
+        
+        // Find the bid button
+        View productCard = bidInput.getRootView();
+        Button bidButton = productCard.findViewById(R.id.product_bid_button);
+        if (bidButton == null) return;
+        
+        // Disable bidding controls
+        bidButton.setEnabled(false);
+        bidInput.setEnabled(false);
+        timerText.setText("CLOSED");
+        timerText.setTextColor(getResources().getColor(android.R.color.darker_gray));
+        
+        // Find the product name
+        String productName = "";
+        for (Product product : productList) {
+            if (product.getId() == productId) {
+                productName = product.getProductName();
+                break;
+            }
+        }
+        
+        if (!productName.isEmpty()) {
+            Toast.makeText(requireContext(), 
+                    "Bidding for " + productName + " is now closed.", 
+                    Toast.LENGTH_SHORT).show();
         }
     }
     
     /**
      * Handle bid placement
      */
-    private void placeBid(String product, String bidAmount, TextView yourBidText) {
+    private void placeBid(int productId, String productName, String bidAmount, TextView yourBidText) {
         try {
+            // Mark this product as bid on
+            productBidStatus.put(productId, true);
+            
             // Remove currency symbol and parse the bid amount
             float newBid = Float.parseFloat(bidAmount.replace("₹", ""));
             
@@ -259,16 +492,13 @@ public class BettingFragment extends Fragment {
             
             Toast.makeText(
                 requireContext(),
-                "Bid of ₹" + cleanBidAmount + " placed for " + product,
+                "Bid of ₹" + cleanBidAmount + " placed for " + productName,
                 Toast.LENGTH_SHORT
             ).show();
             
             // Reset the timer for this product
-            if (product.equals("Fresh Tomatoes")) {
-                resetBiddingTimer(TOMATO);
-            } else {
-                resetBiddingTimer(WHEAT);
-            }
+            resetBiddingTimer(productId);
+            
         } catch (NumberFormatException e) {
             Toast.makeText(
                 requireContext(),

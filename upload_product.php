@@ -76,6 +76,7 @@ $price = floatval($data['price'] ?? 0);
 $expected_price = floatval($data['expected_price'] ?? 0);
 $description = $data['description'] ?? '';
 $image_base64 = $data['image_base64'] ?? '';
+$register_for_bidding = true;
 
 // Validate required fields
 if (empty($farmer_name) || empty($product_name) || empty($harvesting_date) || empty($farming_type) || 
@@ -130,7 +131,7 @@ if (!$file_saved) {
 }
 
 // Insert product into database
-$stmt = $conn->prepare("INSERT INTO products (farmer_name, farmer_mobile, product_name, harvesting_date, farming_type, quantity, price, expected_price, description, image_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+$stmt = $conn->prepare("INSERT INTO products (farmer_name, farmer_mobile, product_name, harvesting_date, farming_type, quantity, price, expected_price, description, image_path, register_for_bidding, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
 
 if (!$stmt) {
     header('HTTP/1.1 500 Internal Server Error');
@@ -142,7 +143,8 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param("sssssdddss", $farmer_name, $farmer_mobile, $product_name, $harvesting_date, $farming_type, $quantity, $price, $expected_price, $description, $image_path);
+$register_for_bidding_int = $register_for_bidding ? 1 : 0;
+$stmt->bind_param("sssssdddssi", $farmer_name, $farmer_mobile, $product_name, $harvesting_date, $farming_type, $quantity, $price, $expected_price, $description, $image_path, $register_for_bidding_int);
 
 if (!$stmt->execute()) {
     header('HTTP/1.1 500 Internal Server Error');

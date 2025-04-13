@@ -73,6 +73,7 @@
     <color name="circle_green_light">#E8F5E9</color> <!-- Very light green -->
     <color name="circle_orange_dark_light">#FFF8E1</color> <!-- Pale orange -->
     <color name="circle_green_dark_light">#E8F5E9</color> <!-- Light green -->
+    <color name="circle_red_light">#FFEBEE</color> <!-- Very light red -->
 
     <!-- Weather Card Colors (from screenshot) -->
     <color name="weather_card_bg">#4079E4</color> <!-- Blue weather card -->

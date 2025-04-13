@@ -49,6 +49,9 @@ while ($row = $result->fetch_assoc()) {
     $row['price'] = (float) $row['price'];
     $row['expected_price'] = (float) $row['expected_price'];
     
+    // Handle register_for_bidding field (default to true if not set)
+    $row['register_for_bidding'] = isset($row['register_for_bidding']) ? (bool) $row['register_for_bidding'] : true;
+    
     // Add product to array
     $products[] = $row;
 }

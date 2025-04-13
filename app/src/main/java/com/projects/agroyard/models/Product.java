@@ -20,6 +20,7 @@ public class Product {
     private String description;
     private String imageUrl;
     private String imagePath;
+    private boolean registerForBidding;
 
     public Product() {
         // Empty constructor required for JSON parsing
@@ -37,6 +38,9 @@ public class Product {
             this.price = jsonObject.getDouble("price");
             this.expectedPrice = jsonObject.getDouble("expected_price");
             this.description = jsonObject.getString("description");
+            
+            // Check if product is registered for bidding
+            this.registerForBidding = jsonObject.optBoolean("register_for_bidding", true);
             
             // Handle image paths with proper logging for debugging
             if (jsonObject.has("image_path")) {
@@ -77,4 +81,5 @@ public class Product {
     public String getImageUrl() { return imageUrl; }
     public String getImagePath() { return imagePath; }
     public String getImageFilename() { return imagePath; }
+    public boolean isRegisterForBidding() { return registerForBidding; }
 } 

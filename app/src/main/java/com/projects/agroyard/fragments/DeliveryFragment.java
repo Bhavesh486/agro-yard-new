@@ -51,7 +51,7 @@ public class DeliveryFragment extends Fragment {
         sessionManager = new SessionManager(requireContext());
         sharedPreferences = requireActivity().getSharedPreferences(PREF_DELIVERY_ADDRESSES, Context.MODE_PRIVATE);
     }
-    
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
