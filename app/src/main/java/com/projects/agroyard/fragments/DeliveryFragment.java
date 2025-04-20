@@ -7,9 +7,12 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -18,13 +21,19 @@ import androidx.fragment.app.Fragment;
 
 import com.projects.agroyard.R;
 import com.projects.agroyard.constants.Constants;
+import com.projects.agroyard.utils.FirestoreHelper;
 import com.projects.agroyard.utils.SessionManager;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class DeliveryFragment extends Fragment {
     
     private static final String PREF_DELIVERY_ADDRESSES = "DeliveryAddresses";
+    private static final String TAG = "DeliveryFragment";
     
     private EditText nameInput;
     private EditText addressLine1Input;
@@ -35,11 +44,16 @@ public class DeliveryFragment extends Fragment {
     private EditText phoneNumberInput;
     private EditText alternatePhoneInput;
     private EditText landmarkInput;
+    private Spinner farmerSpinner;
+    private TextView farmerLabelText;
     private Button saveButton;
     private ImageView backButton;
     
     private SessionManager sessionManager;
     private SharedPreferences sharedPreferences;
+    private List<Map<String, Object>> farmersList = new ArrayList<>();
+    private List<String> farmerNames = new ArrayList<>();
+    private Map<String, String> farmerNameToIdMap = new HashMap<>();
     
     public DeliveryFragment() {
         // Required empty public constructor
@@ -80,6 +94,9 @@ public class DeliveryFragment extends Fragment {
             }
         });
         
+        // Load farmers from Firestore
+        loadFarmers();
+        
         return view;
     }
     
@@ -93,8 +110,49 @@ public class DeliveryFragment extends Fragment {
         phoneNumberInput = view.findViewById(R.id.input_phone);
         alternatePhoneInput = view.findViewById(R.id.input_alternate_phone);
         landmarkInput = view.findViewById(R.id.input_landmark);
+        farmerSpinner = view.findViewById(R.id.spinner_farmer);
+        farmerLabelText = view.findViewById(R.id.text_farmer_label);
         saveButton = view.findViewById(R.id.button_save_address);
         backButton = view.findViewById(R.id.back_button);
+    }
+    
+    private void loadFarmers() {
+        FirestoreHelper.getAllFarmers(new FirestoreHelper.FarmersCallback() {
+            @Override
+            public void onFarmersLoaded(List<Map<String, Object>> farmers) {
+                farmersList = farmers;
+                farmerNames.clear();
+                farmerNameToIdMap.clear();
+                
+                // Add a default option
+                farmerNames.add("Select a Farmer");
+                
+                // Add all farmers to the list
+                for (Map<String, Object> farmer : farmers) {
+                    String name = (String) farmer.get("name");
+                    String userId = (String) farmer.get("userId");
+                    if (name != null && userId != null) {
+                        farmerNames.add(name);
+                        farmerNameToIdMap.put(name, userId);
+                    }
+                }
+                
+                // Create adapter for spinner
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                        requireContext(), 
+                        android.R.layout.simple_spinner_item, 
+                        farmerNames);
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                farmerSpinner.setAdapter(adapter);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Toast.makeText(requireContext(), 
+                        "Error loading farmers: " + e.getMessage(), 
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
     }
     
     private boolean validateInputs() {
@@ -137,6 +195,12 @@ public class DeliveryFragment extends Fragment {
             isValid = false;
         }
         
+        // Validate farmer selection
+        if (farmerSpinner.getSelectedItemPosition() == 0) {
+            Toast.makeText(requireContext(), "Please select a farmer", Toast.LENGTH_SHORT).show();
+            isValid = false;
+        }
+        
         return isValid;
     }
     
@@ -144,31 +208,45 @@ public class DeliveryFragment extends Fragment {
         // Get the user ID
         String userId = sessionManager.getUserId();
         if (TextUtils.isEmpty(userId)) {
-            userId = UUID.randomUUID().toString(); // Generate a unique ID if not available
+            Toast.makeText(requireContext(), "User ID not found", Toast.LENGTH_SHORT).show();
+            return;
         }
         
-        // Create address JSON
-        String addressJson = "{" +
-                "\"name\":\"" + nameInput.getText().toString() + "\"," +
-                "\"addressLine1\":\"" + addressLine1Input.getText().toString() + "\"," +
-                "\"addressLine2\":\"" + addressLine2Input.getText().toString() + "\"," +
-                "\"city\":\"" + cityInput.getText().toString() + "\"," +
-                "\"state\":\"" + stateInput.getText().toString() + "\"," +
-                "\"pinCode\":\"" + pinCodeInput.getText().toString() + "\"," +
-                "\"phone\":\"" + phoneNumberInput.getText().toString() + "\"," +
-                "\"alternatePhone\":\"" + alternatePhoneInput.getText().toString() + "\"," +
-                "\"landmark\":\"" + landmarkInput.getText().toString() + "\"" +
-                "}";
+        // Get selected farmer
+        String selectedFarmerName = farmerSpinner.getSelectedItem().toString();
+        String selectedFarmerId = farmerNameToIdMap.get(selectedFarmerName);
         
-        // Save to SharedPreferences
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString(userId, addressJson);
-        editor.apply();
+        // Create delivery data map
+        Map<String, Object> deliveryData = new HashMap<>();
+        deliveryData.put("userId", userId);
+        deliveryData.put("name", nameInput.getText().toString());
+        deliveryData.put("addressLine1", addressLine1Input.getText().toString());
+        deliveryData.put("addressLine2", addressLine2Input.getText().toString());
+        deliveryData.put("city", cityInput.getText().toString());
+        deliveryData.put("state", stateInput.getText().toString());
+        deliveryData.put("pinCode", pinCodeInput.getText().toString());
+        deliveryData.put("phone", phoneNumberInput.getText().toString());
+        deliveryData.put("alternatePhone", alternatePhoneInput.getText().toString());
+        deliveryData.put("landmark", landmarkInput.getText().toString());
+        deliveryData.put("farmerId", selectedFarmerId);
+        deliveryData.put("farmerName", selectedFarmerName);
+        deliveryData.put("timestamp", System.currentTimeMillis());
         
-        Toast.makeText(requireContext(), "Delivery address saved successfully", Toast.LENGTH_SHORT).show();
-        
-        // Go back to previous screen
-        requireActivity().getSupportFragmentManager().popBackStack();
+        // Save to Firestore
+        FirestoreHelper.saveDeliveryAddress(deliveryData, new FirestoreHelper.SaveCallback() {
+            @Override
+            public void onSuccess() {
+                Toast.makeText(requireContext(), "Delivery address saved successfully", Toast.LENGTH_SHORT).show();
+                requireActivity().getSupportFragmentManager().popBackStack();
+            }
+
+            @Override
+            public void onError(Exception e) {
+                Toast.makeText(requireContext(), 
+                    "Error saving delivery address: " + e.getMessage(), 
+                    Toast.LENGTH_SHORT).show();
+            }
+        });
     }
     
     private void loadSavedAddress() {
@@ -195,6 +273,7 @@ public class DeliveryFragment extends Fragment {
             String phone = extractValue(addressJson, "phone");
             String alternatePhone = extractValue(addressJson, "alternatePhone");
             String landmark = extractValue(addressJson, "landmark");
+            String farmerName = extractValue(addressJson, "farmerName");
             
             // Populate the form
             nameInput.setText(name);
@@ -206,6 +285,8 @@ public class DeliveryFragment extends Fragment {
             phoneNumberInput.setText(phone);
             alternatePhoneInput.setText(alternatePhone);
             landmarkInput.setText(landmark);
+            
+            // We'll set the farmer spinner after the data is loaded in loadFarmers()
         } catch (Exception e) {
             // Handle parsing error
             Toast.makeText(requireContext(), "Error loading saved address", Toast.LENGTH_SHORT).show();

@@ -264,6 +264,34 @@
                     android:inputType="text"
                     android:padding="12dp"
                     android:layout_marginBottom="16dp" />
+
+                <!-- Farmer Selection -->
+                <TextView
+                    android:id="@+id/text_farmer_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select Farmer *"
+                    android:textColor="#151B33"
+                    android:textSize="16sp"
+                    android:layout_marginBottom="8dp" />
+
+                <Spinner
+                    android:id="@+id/spinner_farmer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@android:drawable/btn_dropdown"
+                    android:padding="12dp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Save Button -->
+                <Button
+                    android:id="@+id/button_save_address"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/button_primary_bg"
+                    android:text="Save Address"
+                    android:textColor="#FFFFFF"
+                    android:padding="12dp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -275,16 +303,5 @@
             android:textColor="#666666"
             android:textSize="14sp"
             android:layout_marginBottom="16dp" />
-
-        <!-- Save Button -->
-        <Button
-            android:id="@+id/button_save_address"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Save Address"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:background="@drawable/button_background_orange" />
-
     </LinearLayout>
 </ScrollView> 

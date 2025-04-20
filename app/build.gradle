@@ -58,6 +58,9 @@ dependencies {
     // Add SwipeRefreshLayout dependency
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     
+    // Cloudinary SDK for image upload and management
+    implementation 'com.cloudinary:cloudinary-android:2.3.1'
+    
     // Testing
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

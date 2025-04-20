@@ -5,10 +5,13 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.Map;
+
 public class Product {
     private static final String TAG = "Product";
     
     private int id;
+    private String productId; // Firestore document ID
     private String farmerName;
     private String farmerMobile;
     private String productName;
@@ -21,9 +24,108 @@ public class Product {
     private String imageUrl;
     private String imagePath;
     private boolean registerForBidding;
+    private Map<String, Object> originalData; // Store the original data for reference
 
     public Product() {
         // Empty constructor required for JSON parsing
+    }
+
+    /**
+     * Constructor for creating Product from Firestore data
+     * @param firestoreData Map data from Firestore
+     */
+    public Product(Map<String, Object> firestoreData) {
+        try {
+            // Store the original data
+            this.originalData = firestoreData;
+            
+            // Get product ID (Firestore document ID)
+            this.productId = (String) firestoreData.get("product_id");
+            
+            // Attempt to get legacy ID if available
+            if (firestoreData.containsKey("id")) {
+                if (firestoreData.get("id") instanceof Long) {
+                    this.id = ((Long) firestoreData.get("id")).intValue();
+                } else if (firestoreData.get("id") instanceof Integer) {
+                    this.id = (Integer) firestoreData.get("id");
+                } else if (firestoreData.get("id") instanceof String) {
+                    try {
+                        this.id = Integer.parseInt((String) firestoreData.get("id"));
+                    } catch (NumberFormatException e) {
+                        this.id = 0;
+                    }
+                }
+            } else {
+                this.id = 0; // Default ID for new Firestore records
+            }
+            
+            this.farmerName = (String) firestoreData.get("farmer_name");
+            this.farmerMobile = (String) firestoreData.get("farmer_mobile");
+            this.productName = (String) firestoreData.get("product_name");
+            this.harvestingDate = (String) firestoreData.get("harvesting_date");
+            this.farmingType = (String) firestoreData.get("farming_type");
+            
+            // Handle number conversions safely
+            if (firestoreData.get("quantity") instanceof Double) {
+                this.quantity = (Double) firestoreData.get("quantity");
+            } else if (firestoreData.get("quantity") instanceof Long) {
+                this.quantity = ((Long) firestoreData.get("quantity")).doubleValue();
+            }
+            
+            if (firestoreData.get("price") instanceof Double) {
+                this.price = (Double) firestoreData.get("price");
+            } else if (firestoreData.get("price") instanceof Long) {
+                this.price = ((Long) firestoreData.get("price")).doubleValue();
+            }
+            
+            if (firestoreData.get("expected_price") instanceof Double) {
+                this.expectedPrice = (Double) firestoreData.get("expected_price");
+            } else if (firestoreData.get("expected_price") instanceof Long) {
+                this.expectedPrice = ((Long) firestoreData.get("expected_price")).doubleValue();
+            }
+            
+            this.description = (String) firestoreData.get("description");
+            
+            // Check for register_for_bidding
+            if (firestoreData.containsKey("register_for_bidding")) {
+                if (firestoreData.get("register_for_bidding") instanceof Boolean) {
+                    this.registerForBidding = (Boolean) firestoreData.get("register_for_bidding");
+                } else if (firestoreData.get("register_for_bidding") instanceof Long) {
+                    this.registerForBidding = ((Long) firestoreData.get("register_for_bidding")) == 1;
+                } else if (firestoreData.get("register_for_bidding") instanceof Integer) {
+                    this.registerForBidding = ((Integer) firestoreData.get("register_for_bidding")) == 1;
+                }
+            } else {
+                this.registerForBidding = true; // Default to true
+            }
+            
+            // Enhanced image handling with better logging
+            if (firestoreData.containsKey("image_url")) {
+                this.imageUrl = (String) firestoreData.get("image_url");
+                Log.d(TAG, "Got image_url from Firestore for " + this.productName + ": " + this.imageUrl);
+            }
+            
+            if (firestoreData.containsKey("image_path")) {
+                this.imagePath = (String) firestoreData.get("image_path");
+                Log.d(TAG, "Got image_path from Firestore for " + this.productName + ": " + this.imagePath);
+            } else if (firestoreData.containsKey("image_filename")) {
+                // Fallback to image_filename for compatibility
+                this.imagePath = (String) firestoreData.get("image_filename");
+                Log.d(TAG, "Using image_filename as fallback for " + this.productName + ": " + this.imagePath);
+            }
+            
+            // For storing images in Cloudinary (look for these fields)
+            if (firestoreData.containsKey("cloudinary_url")) {
+                this.imageUrl = (String) firestoreData.get("cloudinary_url");
+                Log.d(TAG, "Got cloudinary_url from Firestore: " + this.imageUrl);
+            }
+            
+            if (firestoreData.containsKey("image_public_id")) {
+                Log.d(TAG, "Product has Cloudinary public_id: " + firestoreData.get("image_public_id"));
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating Product from Firestore data: " + e.getMessage(), e);
+        }
     }
 
     public Product(JSONObject jsonObject) throws JSONException {
@@ -69,6 +171,7 @@ public class Product {
 
     // Getters
     public int getId() { return id; }
+    public String getProductId() { return productId; }
     public String getFarmerName() { return farmerName; }
     public String getFarmerMobile() { return farmerMobile; }
     public String getProductName() { return productName; }
@@ -82,4 +185,7 @@ public class Product {
     public String getImagePath() { return imagePath; }
     public String getImageFilename() { return imagePath; }
     public boolean isRegisterForBidding() { return registerForBidding; }
+    public Map<String, Object> getOriginalData() {
+        return originalData;
+    }
 } 

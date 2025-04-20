@@ -3,6 +3,8 @@ package com.projects.agroyard.utils;
 import android.content.Context;
 import android.util.Log;
 
+import com.projects.agroyard.constants.Constants;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -19,9 +21,9 @@ import okhttp3.Response;
  */
 public class ImageHelper {
     private static final String TAG = "ImageHelper";
-    private static final String CHECK_IMAGE_URL = "http://agroyard.42web.io/agroyard/api/check_image.php?filename=";
+    private static final String CHECK_IMAGE_URL = Constants.DB_URL_BASE + "check_image.php?filename=";
     private static final OkHttpClient client = new OkHttpClient();
-    
+
     /**
      * Checks if an image exists on the server and returns details about it
      * @param context Android context
@@ -33,12 +35,12 @@ public class ImageHelper {
             callback.onResult(false, "No filename provided", null);
             return;
         }
-        
+
         String url = CHECK_IMAGE_URL + imageFilename;
         Request request = new Request.Builder()
                 .url(url)
                 .build();
-                
+
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -52,29 +54,29 @@ public class ImageHelper {
                     callback.onResult(false, "Server error: " + response.code(), null);
                     return;
                 }
-                
+
                 try {
                     String responseBody = response.body().string();
                     JSONObject jsonResponse = new JSONObject(responseBody);
-                    
+
                     boolean exists = jsonResponse.getBoolean("file_exists");
                     String emulatorUrl = jsonResponse.getString("emulator_url");
-                    
+
                     JSONObject details = new JSONObject();
                     details.put("exists", exists);
                     details.put("emulator_url", emulatorUrl);
                     details.put("browser_url", jsonResponse.getString("browser_url"));
                     details.put("physical_path", jsonResponse.getString("physical_path"));
-                    
+
                     if (exists && jsonResponse.has("file_details")) {
                         details.put("file_details", jsonResponse.getJSONObject("file_details"));
                     }
-                    
-                    callback.onResult(exists, exists ? 
-                            "Image exists on the server" : 
-                            "Image doesn't exist on the server", 
+
+                    callback.onResult(exists, exists ?
+                                    "Image exists on the server" :
+                                    "Image doesn't exist on the server",
                             details);
-                    
+
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing image check response", e);
                     callback.onResult(false, "Error parsing server response: " + e.getMessage(), null);
@@ -82,7 +84,7 @@ public class ImageHelper {
             }
         });
     }
-    
+
     /**
      * Constructs a full URL for accessing an image from the emulator
      * @param filename The image filename
@@ -92,9 +94,9 @@ public class ImageHelper {
         if (filename == null || filename.isEmpty()) {
             return null;
         }
-        return "http://agroyard.42web.io/agroyard/api/uploads/" + filename;
+        return Constants.DB_URL_BASE + "uploads/" + filename;
     }
-    
+
     /**
      * Callback interface for image check operations
      */

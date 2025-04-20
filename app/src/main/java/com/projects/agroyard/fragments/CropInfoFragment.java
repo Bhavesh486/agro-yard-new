@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -16,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CropInfoFragment extends Fragment {
+    private ImageView backButton;
     private CardView tomatoesCard;
     private CardView wheatCard;
     private CardView applesCard;
@@ -76,11 +78,21 @@ public class CropInfoFragment extends Fragment {
         // Set click listeners
         setupClickListeners();
         
+        // Setup back button
+        if (backButton != null) {
+            backButton.setOnClickListener(v -> {
+                if (getActivity() != null) {
+                    getActivity().getSupportFragmentManager().popBackStack();
+                }
+            });
+        }
+        
         return view;
     }
 
     private void initializeViews(View view) {
         try {
+            backButton = view.findViewById(R.id.back_button);
             tomatoesCard = view.findViewById(R.id.tomatoes_card);
             wheatCard = view.findViewById(R.id.wheat_card);
             applesCard = view.findViewById(R.id.apples_card);
@@ -453,7 +465,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> cucumberData = new HashMap<>();
         cucumberData.put(CROP_NAME, "Cucumber");
         cucumberData.put(CROP_TYPE, "Vegetable");
-        cucumberData.put(CROP_IMAGE, R.drawable.placeholder_image);
+        cucumberData.put(CROP_IMAGE, R.drawable.cucumber);
         cucumberData.put("temperature", "18-24°C");
         cucumberData.put("humidity", "70-90%");
         cucumberData.put("sunlight", "Full sun exposure");
@@ -555,7 +567,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> cauliflowerData = new HashMap<>();
         cauliflowerData.put(CROP_NAME, "Cauliflower");
         cauliflowerData.put(CROP_TYPE, "Vegetable");
-        cauliflowerData.put(CROP_IMAGE, R.drawable.placeholder_image);
+        cauliflowerData.put(CROP_IMAGE, R.drawable.cauliflower);
         cauliflowerData.put("temperature", "15-21°C");
         cauliflowerData.put("humidity", "60-70%");
         cauliflowerData.put("sunlight", "Full sun exposure");
@@ -572,7 +584,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> peasData = new HashMap<>();
         peasData.put(CROP_NAME, "Peas");
         peasData.put(CROP_TYPE, "Vegetable");
-        peasData.put(CROP_IMAGE, R.drawable.placeholder_image);
+        peasData.put(CROP_IMAGE, R.drawable.peas);
         peasData.put("temperature", "13-20°C");
         peasData.put("humidity", "50-70%");
         peasData.put("sunlight", "Full sun to partial shade");
@@ -589,7 +601,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> garlicData = new HashMap<>();
         garlicData.put(CROP_NAME, "Garlic");
         garlicData.put(CROP_TYPE, "Vegetable");
-        garlicData.put(CROP_IMAGE, R.drawable.placeholder_image);
+        garlicData.put(CROP_IMAGE, R.drawable.garlic);
         garlicData.put("temperature", "13-24°C");
         garlicData.put("humidity", "40-60%");
         garlicData.put("sunlight", "Full sun exposure");
@@ -606,7 +618,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> barleyData = new HashMap<>();
         barleyData.put(CROP_NAME, "Barley (Jau)");
         barleyData.put(CROP_TYPE, "Grain");
-        barleyData.put(CROP_IMAGE, R.color.barley_color);
+        barleyData.put(CROP_IMAGE, R.drawable.barley);
         barleyData.put("temperature", "15-20°C");
         barleyData.put("humidity", "40-60%");
         barleyData.put("sunlight", "Full sun exposure");
@@ -623,7 +635,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> oatsData = new HashMap<>();
         oatsData.put(CROP_NAME, "Oats (Jai)");
         oatsData.put(CROP_TYPE, "Grain");
-        oatsData.put(CROP_IMAGE, R.color.oats_color);
+        oatsData.put(CROP_IMAGE, R.drawable.oats);
         oatsData.put("temperature", "15-21°C");
         oatsData.put("humidity", "60-70%");
         oatsData.put("sunlight", "Full sun exposure");
@@ -640,7 +652,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> milletData = new HashMap<>();
         milletData.put(CROP_NAME, "Pearl Millet (Bajra)");
         milletData.put(CROP_TYPE, "Grain");
-        milletData.put(CROP_IMAGE, R.color.millet_color);
+        milletData.put(CROP_IMAGE, R.drawable.bajra);
         milletData.put("temperature", "20-30°C");
         milletData.put("humidity", "40-60%");
         milletData.put("sunlight", "Full sun exposure");
@@ -657,7 +669,7 @@ public class CropInfoFragment extends Fragment {
         Map<String, Object> quinoaData = new HashMap<>();
         quinoaData.put(CROP_NAME, "Quinoa");
         quinoaData.put(CROP_TYPE, "Grain");
-        quinoaData.put(CROP_IMAGE, R.color.quinoa_color);
+        quinoaData.put(CROP_IMAGE, R.drawable.quinoa);
         quinoaData.put("temperature", "15-25°C");
         quinoaData.put("humidity", "40-60%");
         quinoaData.put("sunlight", "Full sun exposure");

@@ -16,7 +16,9 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.projects.agroyard.R;
 import com.projects.agroyard.adapters.ProductAdapter;
+import com.projects.agroyard.constants.Constants;
 import com.projects.agroyard.models.Product;
+import com.projects.agroyard.utils.FirestoreHelper;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -25,6 +27,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -38,7 +41,7 @@ public class ProductsFragment extends Fragment {
     private ProductAdapter productAdapter;
     private SwipeRefreshLayout swipeRefreshLayout;
     private List<Product> productList = new ArrayList<>();
-    private static final String API_URL = "http://agroyard.42web.io/agroyard/api/get_products.php";
+    private static final String API_URL = Constants.DB_URL_BASE + "get_products.php";
 
     @Nullable
     @Override
@@ -49,7 +52,7 @@ public class ProductsFragment extends Fragment {
             // Initialize views
             recyclerView = view.findViewById(R.id.products_recycler_view);
             swipeRefreshLayout = view.findViewById(R.id.swipe_refresh_layout);
-            
+
             // Setup RecyclerView
             recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
             productAdapter = new ProductAdapter(getContext(), productList, this::onProductClick);
@@ -71,143 +74,41 @@ public class ProductsFragment extends Fragment {
     private void fetchProducts() {
         swipeRefreshLayout.setRefreshing(true);
 
-        OkHttpClient client = new OkHttpClient.Builder()
-                .retryOnConnectionFailure(true)
-                .build();
-        
-        Request request = new Request.Builder()
-                .url(API_URL)
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+        FirestoreHelper.getAllProducts(new FirestoreHelper.ProductsCallback() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Network error: " + e.getMessage(), e);
+            public void onProductsLoaded(List<Map<String, Object>> products) {
+                List<Product> newProducts = new ArrayList<>();
+                
+                for (Map<String, Object> productData : products) {
+                    newProducts.add(new Product(productData));
+                }
+                
+                Log.d(TAG, "Found " + newProducts.size() + " products in Firestore");
+                
                 requireActivity().runOnUiThread(() -> {
+                    productList.clear();
+                    productList.addAll(newProducts);
+                    productAdapter.notifyDataSetChanged();
                     swipeRefreshLayout.setRefreshing(false);
-                    Toast.makeText(getContext(), "Error fetching products: " + e.getMessage(), 
-                        Toast.LENGTH_SHORT).show();
+
+                    if (newProducts.isEmpty()) {
+                        Toast.makeText(getContext(), "No products available",
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        Log.d(TAG, "Updated UI with " + newProducts.size() + " products");
+                    }
                 });
             }
 
             @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                if (!response.isSuccessful()) {
-                    Log.e(TAG, "HTTP error: " + response.code());
-                    requireActivity().runOnUiThread(() -> {
-                        swipeRefreshLayout.setRefreshing(false);
-                        Toast.makeText(getContext(), "Error: " + response.code(), 
-                            Toast.LENGTH_SHORT).show();
-                    });
-                    return;
-                }
-
-                try {
-                    if (response.body() == null) {
-                        Log.e(TAG, "Empty response body");
-                        requireActivity().runOnUiThread(() -> {
-                            swipeRefreshLayout.setRefreshing(false);
-                            Toast.makeText(getContext(), "Error: Empty response from server", 
-                                Toast.LENGTH_SHORT).show();
-                        });
-                        return;
-                    }
-
-                    String responseData = response.body().string();
-                    Log.d(TAG, "API Response: " + responseData);
-                    
-                    if (responseData.isEmpty()) {
-                        Log.e(TAG, "Empty response data");
-                        requireActivity().runOnUiThread(() -> {
-                            swipeRefreshLayout.setRefreshing(false);
-                            Toast.makeText(getContext(), "Error: Empty response data", 
-                                Toast.LENGTH_SHORT).show();
-                        });
-                        return;
-                    }
-
-                    JSONObject jsonResponse = new JSONObject(responseData);
-                    
-                    if (jsonResponse.getBoolean("success")) {
-                        JSONArray productsArray = jsonResponse.getJSONArray("products");
-                        List<Product> newProducts = new ArrayList<>();
-                        
-                        Log.d(TAG, "Found " + productsArray.length() + " products");
-                        
-                        for (int i = 0; i < productsArray.length(); i++) {
-                            JSONObject productJson = productsArray.getJSONObject(i);
-                            
-                            // Enhanced logging of product data including images
-                            StringBuilder productInfo = new StringBuilder();
-                            productInfo.append("Product #").append(i + 1).append(": ");
-                            
-                            if (productJson.has("id")) {
-                                productInfo.append("ID=").append(productJson.getInt("id")).append(", ");
-                            }
-                            
-                            if (productJson.has("product_name")) {
-                                productInfo.append("Name=").append(productJson.getString("product_name")).append(", ");
-                            }
-                            
-                            // Check for image_path (from your database)
-                            if (productJson.has("image_path")) {
-                                String imagePath = productJson.getString("image_path");
-                                productInfo.append("image_path=").append(imagePath);
-                                Log.d(TAG, "Product #" + (i + 1) + " has image_path: " + imagePath);
-                            } else {
-                                productInfo.append("NO image_path");
-                                Log.w(TAG, "Product #" + (i + 1) + " is missing image_path field");
-                            }
-                            
-                            // Also check for older image fields for backwards compatibility
-                            if (productJson.has("image_url")) {
-                                Log.d(TAG, "Product #" + (i + 1) + " also has image_url: " + productJson.getString("image_url"));
-                            }
-                            
-                            if (productJson.has("image_filename")) {
-                                Log.d(TAG, "Product #" + (i + 1) + " also has image_filename: " + productJson.getString("image_filename"));
-                            }
-                            
-                            Log.d(TAG, productInfo.toString());
-                            
-                            // Create the product object which will handle all the image fields correctly
-                            newProducts.add(new Product(productJson));
-                        }
-                        
-                        requireActivity().runOnUiThread(() -> {
-                            productList.clear();
-                            productList.addAll(newProducts);
-                            productAdapter.notifyDataSetChanged();
-                            swipeRefreshLayout.setRefreshing(false);
-                            
-                            if (newProducts.isEmpty()) {
-                                Toast.makeText(getContext(), "No products available", 
-                                    Toast.LENGTH_SHORT).show();
-                            } else {
-                                Log.d(TAG, "Updated UI with " + newProducts.size() + " products");
-                            }
-                        });
-                    } else {
-                        final String errorMessage = jsonResponse.has("message") ? 
-                            jsonResponse.optString("message", "Unknown error") : "Unknown error";
-                        
-                        Log.e(TAG, "API error: " + errorMessage);
-                        requireActivity().runOnUiThread(() -> {
-                            swipeRefreshLayout.setRefreshing(false);
-                            Toast.makeText(getContext(), 
-                                "Error: " + errorMessage, 
-                                Toast.LENGTH_SHORT).show();
-                        });
-                    }
-                } catch (JSONException e) {
-                    Log.e(TAG, "JSON parsing error: " + e.getMessage(), e);
-                    requireActivity().runOnUiThread(() -> {
-                        swipeRefreshLayout.setRefreshing(false);
-                        Toast.makeText(getContext(), 
-                            "Error parsing response: " + e.getMessage(), 
-                            Toast.LENGTH_SHORT).show();
-                    });
-                }
+            public void onError(Exception e) {
+                Log.e(TAG, "Error fetching products from Firestore: " + e.getMessage(), e);
+                requireActivity().runOnUiThread(() -> {
+                    swipeRefreshLayout.setRefreshing(false);
+                    Toast.makeText(getContext(), 
+                        "Error fetching products: " + e.getMessage(),
+                        Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
@@ -216,9 +117,9 @@ public class ProductsFragment extends Fragment {
         // Navigate to product details fragment
         ProductDetailFragment detailFragment = ProductDetailFragment.newInstance(product);
         requireActivity().getSupportFragmentManager()
-            .beginTransaction()
-            .replace(R.id.fragment_container, detailFragment)
-            .addToBackStack(null)
-            .commit();
+                .beginTransaction()
+                .replace(R.id.fragment_container, detailFragment)
+                .addToBackStack(null)
+                .commit();
     }
 } 

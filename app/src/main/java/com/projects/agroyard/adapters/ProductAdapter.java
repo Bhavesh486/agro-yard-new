@@ -18,6 +18,7 @@ import com.bumptech.glide.load.engine.GlideException;
 import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.target.Target;
 import com.projects.agroyard.R;
+import com.projects.agroyard.constants.Constants;
 import com.projects.agroyard.models.Product;
 
 import java.util.List;
@@ -100,52 +101,52 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ProductV
 
             // Enhanced image loading using image_path
             String imagePath = product.getImagePath();
-            
+
             Log.d("ProductAdapter", "Loading image for: " + product.getProductName());
             Log.d("ProductAdapter", "Image Path: " + imagePath);
-            
+
             // Set placeholder first to avoid blank images
             productImage.setImageResource(R.drawable.ic_image_placeholder);
-            
+
             // Try to load the image using the image path
             if (imagePath != null && !imagePath.isEmpty()) {
                 // Construct direct URL using the image path
-                String imageUrl = "http://agroyard.42web.io/agroyard/api/" + imagePath;
+                String imageUrl = Constants.DB_URL_BASE + imagePath;
                 Log.d("ProductAdapter", "Loading from constructed URL: " + imageUrl);
                 loadWithGlide(imageUrl, "image_path");
-            } 
+            }
             // Fallback to legacy image URL if available
             else if (product.getImageUrl() != null && !product.getImageUrl().isEmpty()) {
                 Log.d("ProductAdapter", "Falling back to direct image URL: " + product.getImageUrl());
                 loadWithGlide(product.getImageUrl(), "image_url");
             }
         }
-        
+
         private void loadWithGlide(String imageUrl, String source) {
             Glide.with(context)
-                 .load(imageUrl)
-                 .placeholder(R.drawable.ic_image_placeholder)
-                 .error(R.drawable.ic_image_error)
-                 .timeout(30000) // 30 seconds timeout
-                 .listener(new RequestListener<Drawable>() {
-                     @Override
-                     public boolean onLoadFailed(GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
-                         Log.e("ProductAdapter", "❌ Image load FAILED for " + source + ": " + imageUrl, e);
-                         if (e != null) {
-                             for (Throwable t : e.getRootCauses()) {
-                                 Log.e("ProductAdapter", "Caused by: " + t.getMessage());
-                             }
-                         }
-                         return false; // Let Glide handle the error drawable
-                     }
+                    .load(imageUrl)
+                    .placeholder(R.drawable.ic_image_placeholder)
+                    .error(R.drawable.ic_image_error)
+                    .timeout(30000) // 30 seconds timeout
+                    .listener(new RequestListener<Drawable>() {
+                        @Override
+                        public boolean onLoadFailed(GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
+                            Log.e("ProductAdapter", "❌ Image load FAILED for " + source + ": " + imageUrl, e);
+                            if (e != null) {
+                                for (Throwable t : e.getRootCauses()) {
+                                    Log.e("ProductAdapter", "Caused by: " + t.getMessage());
+                                }
+                            }
+                            return false; // Let Glide handle the error drawable
+                        }
 
-                     @Override
-                     public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
-                         Log.d("ProductAdapter", "✅ Image load SUCCESS from " + source + ": " + imageUrl);
-                         return false; // Let Glide handle setting the resource
-                     }
-                 })
-                 .into(productImage);
+                        @Override
+                        public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                            Log.d("ProductAdapter", "✅ Image load SUCCESS from " + source + ": " + imageUrl);
+                            return false; // Let Glide handle setting the resource
+                        }
+                    })
+                    .into(productImage);
         }
     }
 } 

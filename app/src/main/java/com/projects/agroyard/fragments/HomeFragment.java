@@ -135,9 +135,13 @@ public class HomeFragment extends Fragment {
         addCategoryCard(R.drawable.ic_upload_product, "Upload Product", R.drawable.circle_blue_light, 
                 v -> navigateToFragment(new UploadProductFragment()));
         
-        // Add Receive Delivery card
-        addCategoryCard(R.drawable.ic_truck, "Receive Delivery", R.drawable.circle_yellow_light, 
-                v -> navigateToFragment(new DeliveryFragment()));
+        // Add Delivery Requests card
+        addCategoryCard(R.drawable.ic_truck, "Delivery Requests", R.drawable.circle_yellow_light, 
+                v -> navigateToFragment(new DeliveryRequestsFragment()));
+        
+        // Add Receipts card
+        addCategoryCard(R.drawable.ic_transaction, "Receipts", R.drawable.circle_red_light, 
+                v -> navigateToFragment(new ReceiptsFragment()));
     }
     
     private void setupMemberUI(View view) {
@@ -156,6 +160,10 @@ public class HomeFragment extends Fragment {
         // Add Delivery card
         addCategoryCard(R.drawable.ic_delivery, "Delivery", R.drawable.circle_primary_light, 
                 v -> navigateToFragment(new DeliveryFragment()));
+
+        // Add Receipts card
+        addCategoryCard(R.drawable.ic_transaction, "Receipts", R.drawable.circle_green_light, 
+                v -> navigateToFragment(new ReceiptsFragment()));
     }
     
     private void addCategoryCard(int iconResourceId, String title, int backgroundResourceId, View.OnClickListener clickListener) {

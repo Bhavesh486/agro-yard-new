@@ -23,6 +23,7 @@ import com.bumptech.glide.load.engine.GlideException;
 import com.bumptech.glide.request.RequestListener;
 import com.bumptech.glide.request.target.Target;
 import com.projects.agroyard.R;
+import com.projects.agroyard.constants.Constants;
 import com.projects.agroyard.models.Product;
 
 public class ProductDetailFragment extends Fragment {
@@ -40,10 +41,10 @@ public class ProductDetailFragment extends Fragment {
     private static final String ARG_IMAGE_PATH = "image_path";
     private static final String ARG_IMAGE_FILENAME = "image_filename";
     private static final String ARG_REGISTER_FOR_BIDDING = "register_for_bidding";
-    
+
     private static final String TAG = "ProductDetailFragment";
     // Base URL for emulator to access images on localhost
-    private static final String EMULATOR_BASE_URL = "http://agroyard.42web.io/agroyard/api/uploads/";
+    private static final String EMULATOR_BASE_URL = Constants.DB_URL_BASE + "uploads/";
 
     // UI elements
     private ImageView productImage;
@@ -85,10 +86,10 @@ public class ProductDetailFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_product_detail, container, false);
-        
+
         initializeViews(view);
         populateProductDetails();
-        
+
         return view;
     }
 
@@ -106,6 +107,14 @@ public class ProductDetailFragment extends Fragment {
         callFarmerButton = view.findViewById(R.id.call_farmer_button);
         placeBidButton = view.findViewById(R.id.place_bid_button);
         bidButtonContainer = view.findViewById(R.id.bid_button_container);
+
+        // Initialize back button
+        ImageView backButton = view.findViewById(R.id.back_button);
+        backButton.setOnClickListener(v -> {
+            if (getActivity() != null) {
+                getActivity().onBackPressed();
+            }
+        });
     }
 
     private void populateProductDetails() {
@@ -127,17 +136,17 @@ public class ProductDetailFragment extends Fragment {
         String imagePath = args.getString(ARG_IMAGE_PATH);
         String imageUrl = args.getString(ARG_IMAGE_URL);
         String productName = args.getString(ARG_PRODUCT_NAME);
-        
+
         Log.d(TAG, "Loading detail image for product: " + productName);
         Log.d(TAG, "Detail Image Path: " + imagePath);
         Log.d(TAG, "Detail Image URL: " + imageUrl);
-        
+
         // Set placeholder first
         productImage.setImageResource(R.drawable.ic_image_placeholder);
-        
+
         // Try image_path first
         if (imagePath != null && !imagePath.isEmpty()) {
-            String fullUrl = "http://agroyard.42web.io/agroyard/api/" + imagePath;
+            String fullUrl = Constants.DB_URL_BASE + imagePath;
             Log.d(TAG, "Loading from image_path: " + fullUrl);
             loadWithGlide(fullUrl, "image_path");
         }
@@ -179,9 +188,9 @@ public class ProductDetailFragment extends Fragment {
                 bettingFragment.setArguments(bidArgs);
 
                 getParentFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, bettingFragment)
-                    .addToBackStack(null)
-                    .commit();
+                        .replace(R.id.fragment_container, bettingFragment)
+                        .addToBackStack(null)
+                        .commit();
             });
         } else {
             placeBidButton.setVisibility(View.GONE);
@@ -190,28 +199,28 @@ public class ProductDetailFragment extends Fragment {
 
     private void loadWithGlide(String imageUrl, String source) {
         Glide.with(this)
-             .load(imageUrl)
-             .placeholder(R.drawable.ic_image_placeholder)
-             .error(R.drawable.ic_image_error)
-             .timeout(30000) // 30 seconds timeout
-             .listener(new RequestListener<Drawable>() {
-                 @Override
-                 public boolean onLoadFailed(GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
-                     Log.e(TAG, "❌ Detail image load FAILED for " + source + ": " + imageUrl, e);
-                     if (e != null) {
-                         for (Throwable t : e.getRootCauses()) {
-                             Log.e(TAG, "Caused by: " + t.getMessage());
-                         }
-                     }
-                     return false;
-                 }
+                .load(imageUrl)
+                .placeholder(R.drawable.ic_image_placeholder)
+                .error(R.drawable.ic_image_error)
+                .timeout(30000) // 30 seconds timeout
+                .listener(new RequestListener<Drawable>() {
+                    @Override
+                    public boolean onLoadFailed(GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
+                        Log.e(TAG, "❌ Detail image load FAILED for " + source + ": " + imageUrl, e);
+                        if (e != null) {
+                            for (Throwable t : e.getRootCauses()) {
+                                Log.e(TAG, "Caused by: " + t.getMessage());
+                            }
+                        }
+                        return false;
+                    }
 
-                 @Override
-                 public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
-                     Log.d(TAG, "✅ Detail image load SUCCESS from " + source + ": " + imageUrl);
-                     return false;
-                 }
-             })
-             .into(productImage);
+                    @Override
+                    public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                        Log.d(TAG, "✅ Detail image load SUCCESS from " + source + ": " + imageUrl);
+                        return false;
+                    }
+                })
+                .into(productImage);
     }
 } 
