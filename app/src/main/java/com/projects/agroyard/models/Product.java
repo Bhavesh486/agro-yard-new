@@ -24,6 +24,7 @@ public class Product {
     private String imageUrl;
     private String imagePath;
     private boolean registerForBidding;
+    private boolean is_sold = false;
     private Map<String, Object> originalData; // Store the original data for reference
 
     public Product() {
@@ -99,6 +100,17 @@ public class Product {
                 this.registerForBidding = true; // Default to true
             }
             
+            // Check for is_sold field
+            if (firestoreData.containsKey("is_sold")) {
+                if (firestoreData.get("is_sold") instanceof Boolean) {
+                    this.is_sold = (Boolean) firestoreData.get("is_sold");
+                } else if (firestoreData.get("is_sold") instanceof Long) {
+                    this.is_sold = ((Long) firestoreData.get("is_sold")) == 1;
+                } else if (firestoreData.get("is_sold") instanceof Integer) {
+                    this.is_sold = ((Integer) firestoreData.get("is_sold")) == 1;
+                }
+            }
+            
             // Enhanced image handling with better logging
             if (firestoreData.containsKey("image_url")) {
                 this.imageUrl = (String) firestoreData.get("image_url");
@@ -144,6 +156,9 @@ public class Product {
             // Check if product is registered for bidding
             this.registerForBidding = jsonObject.optBoolean("register_for_bidding", true);
             
+            // Check if product is sold
+            this.is_sold = jsonObject.optBoolean("is_sold", false);
+            
             // Handle image paths with proper logging for debugging
             if (jsonObject.has("image_path")) {
                 this.imagePath = jsonObject.getString("image_path");
@@ -185,7 +200,13 @@ public class Product {
     public String getImagePath() { return imagePath; }
     public String getImageFilename() { return imagePath; }
     public boolean isRegisterForBidding() { return registerForBidding; }
+    public boolean isSold() { return is_sold; }
     public Map<String, Object> getOriginalData() {
         return originalData;
+    }
+
+    // Added setter method for is_sold field
+    public void setSold(boolean sold) {
+        this.is_sold = sold;
     }
 } 

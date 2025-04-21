@@ -40,6 +40,12 @@ public class FirestoreHelper {
         void onError(Exception e);
     }
 
+    // Interface for retrieving a single product
+    public interface ProductCallback {
+        void onProductLoaded(Map<String, Object> productData);
+        void onError(Exception e);
+    }
+
     // Interface for retrieving farmers
     public interface FarmersCallback {
         void onFarmersLoaded(List<Map<String, Object>> farmers);
@@ -670,6 +676,135 @@ public class FirestoreHelper {
             })
             .addOnFailureListener(e -> {
                 Log.w(TAG, "Error getting bid info for product: " + productId, e);
+                callback.onError(e);
+            });
+    }
+    
+    /**
+     * Update a product in Firestore
+     * @param productId The product ID to update
+     * @param updateData Map containing fields to update
+     * @param callback Callback to handle success/failure
+     */
+    public static void updateProduct(String productId, Map<String, Object> updateData, SaveCallback callback) {
+        if (productId == null || productId.isEmpty()) {
+            callback.onError(new IllegalArgumentException("Product ID cannot be null or empty"));
+            return;
+        }
+        
+        productsCollection.document(productId)
+            .update(updateData)
+            .addOnSuccessListener(aVoid -> {
+                Log.d(TAG, "Product successfully updated: " + productId);
+                callback.onSuccess();
+            })
+            .addOnFailureListener(e -> {
+                Log.w(TAG, "Error updating product: " + productId, e);
+                callback.onError(e);
+            });
+    }
+    
+    /**
+     * Special update method for resetting all bidding data on a product
+     * This ensures all previous bidding data is cleared to start fresh
+     * @param productId The product ID to update
+     * @param updateData Map containing fresh bidding data
+     * @param callback Callback to handle success/failure
+     */
+    public static void updateProductWithBidReset(String productId, Map<String, Object> updateData, SaveCallback callback) {
+        if (productId == null || productId.isEmpty()) {
+            callback.onError(new IllegalArgumentException("Product ID cannot be null or empty"));
+            return;
+        }
+        
+        // Add update timestamp
+        updateData.put("timer_updated_at", System.currentTimeMillis());
+        
+        // Get current product data first
+        productsCollection.document(productId).get()
+            .addOnSuccessListener(documentSnapshot -> {
+                if (documentSnapshot.exists()) {
+                    Map<String, Object> existingData = documentSnapshot.getData();
+                    
+                    // Create a map of fields to explicitly set to null or reset
+                    Map<String, Object> resetData = new HashMap<>();
+                    
+                    // Make sure these fields are included in our update
+                    if (!updateData.containsKey("current_bid")) {
+                        if (existingData.containsKey("price")) {
+                            Object priceObj = existingData.get("price");
+                            if (priceObj instanceof Double) {
+                                resetData.put("current_bid", (Double) priceObj);
+                            } else if (priceObj instanceof Long) {
+                                resetData.put("current_bid", ((Long) priceObj).doubleValue());
+                            } else if (priceObj instanceof Integer) {
+                                resetData.put("current_bid", ((Integer) priceObj).doubleValue());
+                            } else {
+                                resetData.put("current_bid", 0.0);
+                            }
+                        } else {
+                            resetData.put("current_bid", 0.0);
+                        }
+                    }
+                    
+                    // Always reset bidder information
+                    resetData.put("bidder_name", null);
+                    resetData.put("bidder_mobile", null);
+                    resetData.put("bidder_id", null);
+                    resetData.put("bid_timestamp", null);
+                    
+                    // Merge with the update data
+                    resetData.putAll(updateData);
+                    
+                    // Perform the update with reset data
+                    productsCollection.document(productId)
+                        .update(resetData)
+                        .addOnSuccessListener(aVoid -> {
+                            Log.d(TAG, "Product bidding data reset for: " + productId);
+                            callback.onSuccess();
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.w(TAG, "Error resetting product bidding data: " + productId, e);
+                            callback.onError(e);
+                        });
+                } else {
+                    callback.onError(new Exception("Product not found with ID: " + productId));
+                }
+            })
+            .addOnFailureListener(e -> {
+                Log.w(TAG, "Error getting product for reset: " + productId, e);
+                callback.onError(e);
+            });
+    }
+
+    /**
+     * Get a specific product by ID from Firestore
+     * @param productId The product ID to retrieve
+     * @param callback Callback to handle the retrieved product
+     */
+    public static void getProductById(String productId, ProductCallback callback) {
+        if (productId == null || productId.isEmpty()) {
+            callback.onError(new IllegalArgumentException("Product ID cannot be null or empty"));
+            return;
+        }
+        
+        productsCollection.document(productId)
+            .get()
+            .addOnSuccessListener(documentSnapshot -> {
+                if (documentSnapshot.exists()) {
+                    Map<String, Object> productData = documentSnapshot.getData();
+                    // Ensure product ID is included
+                    if (productData != null && !productData.containsKey("product_id")) {
+                        productData.put("product_id", documentSnapshot.getId());
+                    }
+                    callback.onProductLoaded(productData);
+                } else {
+                    Log.w(TAG, "Product not found with ID: " + productId);
+                    callback.onProductLoaded(null);
+                }
+            })
+            .addOnFailureListener(e -> {
+                Log.e(TAG, "Error getting product by ID: " + productId, e);
                 callback.onError(e);
             });
     }

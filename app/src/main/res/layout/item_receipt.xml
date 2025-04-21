@@ -86,6 +86,29 @@
             android:layout_marginTop="12dp"
             android:layout_marginBottom="12dp"/>
         
+        <!-- Date and Time -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+            
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@android:drawable/ic_menu_recent_history"
+                android:tint="#777777"/>
+            
+            <TextView
+                android:id="@+id/receipt_date_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Jan 01, 2023 12:30 PM"
+                android:textSize="14sp"
+                android:textColor="#777777"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
         <!-- Person Details -->
         <LinearLayout
             android:layout_width="match_parent"

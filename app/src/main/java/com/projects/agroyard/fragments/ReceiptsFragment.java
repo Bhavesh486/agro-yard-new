@@ -22,12 +22,15 @@ import com.projects.agroyard.R;
 import com.projects.agroyard.constants.Constants;
 import com.projects.agroyard.models.Receipt;
 import com.projects.agroyard.services.ReceiptService;
+import com.projects.agroyard.utils.SessionManager;
 
 import android.widget.LinearLayout;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.ImageView;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.text.NumberFormat;
 import java.util.Locale;
 
@@ -42,6 +45,10 @@ public class ReceiptsFragment extends Fragment {
     private LinearLayout receiptsList;
     private SwipeRefreshLayout swipeRefreshLayout;
     private ReceiptService receiptService;
+    private SessionManager sessionManager;
+    
+    // Track already displayed receipt IDs to prevent duplicates
+    private Set<String> displayedReceiptIds = new HashSet<>();
     
     // Add button to create test receipt
     private View createTestButton;
@@ -53,12 +60,19 @@ public class ReceiptsFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Get user type from SharedPreferences
-        SharedPreferences prefs = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        userType = prefs.getString(KEY_USER_TYPE, Constants.FARMER); // Default to Farmer if not set
+        // Initialize session manager
+        sessionManager = new SessionManager(requireContext());
         
-        // Initialize receipt service
-        receiptService = new ReceiptService();
+        // Get user type from SessionManager first, fallback to SharedPreferences
+        userType = sessionManager.getUserType();
+        if (userType == null || userType.isEmpty()) {
+            // Fallback to SharedPreferences
+            SharedPreferences prefs = requireActivity().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            userType = prefs.getString(KEY_USER_TYPE, Constants.FARMER); // Default to Farmer if not set
+        }
+        
+        // Initialize receipt service with context
+        receiptService = new ReceiptService(requireContext());
     }
     
     @Nullable
@@ -78,12 +92,8 @@ public class ReceiptsFragment extends Fragment {
                 return view;
             }
             
-            // Set title based on user type
-            if (userType.equals(Constants.FARMER)) {
-                if (titleText != null) titleText.setText("Your Sales Receipts");
-            } else {
-                if (titleText != null) titleText.setText("Your Purchase Receipts");
-            }
+            // Set title to show all transactions
+            if (titleText != null) titleText.setText("Your Transaction Receipts");
             
             // Set up swipe refresh
             swipeRefreshLayout.setOnRefreshListener(this::loadReceipts);
@@ -126,6 +136,9 @@ public class ReceiptsFragment extends Fragment {
                 receiptsList.removeAllViews();
             }
             
+            // Clear the set of displayed receipt IDs
+            displayedReceiptIds.clear();
+            
             // Set views to correct initial state
             if (emptyView != null) {
                 emptyView.setVisibility(View.GONE);
@@ -147,13 +160,14 @@ public class ReceiptsFragment extends Fragment {
                 return;
             }
             
-            // DEBUGGING: Log user info
-            FirebaseAuth auth = FirebaseAuth.getInstance();
-            if (auth.getCurrentUser() == null) {
-                Log.e("RECEIPT_DEBUG", "User not logged in!");
+            // Get user phone number from SessionManager
+            String userPhone = sessionManager.getMobile();
+            
+            // Check if we have a phone number
+            if (userPhone == null || userPhone.isEmpty()) {
                 if (getActivity() != null) {
                     getActivity().runOnUiThread(() -> {
-                        Toast.makeText(requireContext(), "Please login first", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), "Phone number not available. Please update your profile.", Toast.LENGTH_SHORT).show();
                         if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
                         if (emptyView != null) emptyView.setVisibility(View.VISIBLE);
                         if (createTestButton != null) createTestButton.setVisibility(View.VISIBLE);
@@ -162,80 +176,112 @@ public class ReceiptsFragment extends Fragment {
                 return;
             }
             
-            String userId = auth.getCurrentUser().getUid();
             Log.d("RECEIPT_DEBUG", "========= RECEIPT DEBUGGING =========");
-            Log.d("RECEIPT_DEBUG", "Current user ID: " + userId);
+            Log.d("RECEIPT_DEBUG", "Current user phone: " + userPhone);
             Log.d("RECEIPT_DEBUG", "User type: " + userType);
+            Log.d("RECEIPT_DEBUG", "User name: " + sessionManager.getName());
             
-            if (userType.equals(Constants.FARMER)) {
-                // Load farmer receipts
-                Log.d("RECEIPT_DEBUG", "Attempting to load FARMER receipts");
-                receiptService.getReceiptsForFarmer()
-                    .addOnSuccessListener(queryDocumentSnapshots -> {
-                        if (!isAdded() || getActivity() == null) {
-                            Log.e("RECEIPT_DEBUG", "Fragment detached during query");
-                            return;
-                        }
-                        
-                        Log.d("RECEIPT_DEBUG", "Query successful, document count: " + 
-                              queryDocumentSnapshots.size());
-                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
-                            Log.d("RECEIPT_DEBUG", "Receipt document ID: " + doc.getId());
-                            Log.d("RECEIPT_DEBUG", "Receipt data: " + doc.getData());
-                        }
-                        
-                        if (queryDocumentSnapshots.isEmpty()) {
-                            Log.d("RECEIPT_DEBUG", "No real receipts found for farmer");
-                            // Don't show demo receipts immediately
+            // Determine user type from SessionManager
+            boolean isFarmer = Constants.FARMER.equals(userType);
+            boolean isMember = Constants.MEMBER.equals(userType);
+            
+            Log.d("RECEIPT_DEBUG", "Is Farmer: " + isFarmer + ", Is Member: " + isMember);
+            
+            // Load all receipts for this user by phone number (both as farmer and member)
+            Log.d("RECEIPT_DEBUG", "Attempting to load ALL receipts for user by phone");
+            receiptService.getAllReceiptsByPhone()
+                .addOnSuccessListener(receipts -> {
+                    if (!isAdded() || getActivity() == null) {
+                        Log.e("RECEIPT_DEBUG", "Fragment detached during query");
+                        return;
+                    }
+                    
+                    Log.d("RECEIPT_DEBUG", "Query successful, receipt count: " + receipts.size());
+                    
+                    getActivity().runOnUiThread(() -> {
+                        if (receipts.isEmpty()) {
+                            Log.d("RECEIPT_DEBUG", "No receipts found for user");
+                            // Show empty view
                             if (emptyView != null) emptyView.setVisibility(View.VISIBLE);
                             if (createTestButton != null) createTestButton.setVisibility(View.VISIBLE);
                             if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
                         } else {
-                            processReceipts(queryDocumentSnapshots);
-                        }
-                    })
-                    .addOnFailureListener(e -> {
-                        if (!isAdded() || getActivity() == null) return;
-                        
-                        Log.e("RECEIPT_DEBUG", "Query FAILED: " + e.getMessage());
-                        Log.e("RECEIPT_DEBUG", "Error details: ", e);
-                        handleError(e);
-                    });
-            } else {
-                // Load member receipts
-                Log.d("RECEIPT_DEBUG", "Attempting to load MEMBER receipts");
-                receiptService.getReceiptsForMember()
-                    .addOnSuccessListener(queryDocumentSnapshots -> {
-                        if (!isAdded() || getActivity() == null) {
-                            Log.e("RECEIPT_DEBUG", "Fragment detached during query");
-                            return;
-                        }
-                        
-                        Log.d("RECEIPT_DEBUG", "Query successful, document count: " + 
-                              queryDocumentSnapshots.size());
-                        for (QueryDocumentSnapshot doc : queryDocumentSnapshots) {
-                            Log.d("RECEIPT_DEBUG", "Receipt document ID: " + doc.getId());
-                            Log.d("RECEIPT_DEBUG", "Receipt data: " + doc.getData());
-                        }
-                        
-                        if (queryDocumentSnapshots.isEmpty()) {
-                            Log.d("RECEIPT_DEBUG", "No real receipts found for member");
-                            // Don't show demo receipts immediately
-                            if (emptyView != null) emptyView.setVisibility(View.VISIBLE);
-                            if (createTestButton != null) createTestButton.setVisibility(View.VISIBLE);
+                            // Sort receipts by timestamp (newest first)
+                            receipts.sort((r1, r2) -> {
+                                // Handle null timestamps (put them at the end)
+                                if (r1.getTimestamp() == null) return 1;
+                                if (r2.getTimestamp() == null) return -1;
+                                // Compare timestamps (reverse order for newest first)
+                                return r2.getTimestamp().compareTo(r1.getTimestamp());
+                            });
+                            
+                            // Separate receipts into farmer and member categories
+                            List<Receipt> farmerReceipts = new ArrayList<>();
+                            List<Receipt> memberReceipts = new ArrayList<>();
+                            
+                            // Get current user phone
+                            String currentUserPhone = sessionManager.getMobile();
+                            
+                            for (Receipt receipt : receipts) {
+                                if (currentUserPhone != null && currentUserPhone.equals(receipt.getFarmerPhone())) {
+                                    farmerReceipts.add(receipt);
+                                } else if (currentUserPhone != null && currentUserPhone.equals(receipt.getMemberPhone())) {
+                                    memberReceipts.add(receipt);
+                                }
+                            }
+                            
+                            // Display all receipts in separate sections
+                            Log.d("RECEIPT_DEBUG", "Found " + receipts.size() + " receipts in total: " + 
+                                  farmerReceipts.size() + " as farmer, " + memberReceipts.size() + " as member");
+                            
+                            if (emptyView != null) emptyView.setVisibility(View.GONE);
+                            
+                            // Only show farmer receipts if the user is a farmer
+                            if (isFarmer && !farmerReceipts.isEmpty()) {
+                                addSectionHeader("Products You Sold", R.color.colorPrimary);
+                                for (Receipt receipt : farmerReceipts) {
+                                    displayReceipt(receipt);
+                                }
+                            }
+                            
+                            // Only show member receipts if the user is a member
+                            if (isMember && !memberReceipts.isEmpty()) {
+                                addSectionHeader("Products You Purchased", R.color.colorAccent);
+                                for (Receipt receipt : memberReceipts) {
+                                    displayReceipt(receipt);
+                                }
+                            }
+                            
+                            // If this user has receipts, but they're not shown due to user type, or no receipts at all
+                            boolean anyReceiptsShown = (isFarmer && !farmerReceipts.isEmpty()) || 
+                                                       (isMember && !memberReceipts.isEmpty());
+                            
+                            if (!anyReceiptsShown) {
+                                if (emptyView != null) {
+                                    emptyView.setVisibility(View.VISIBLE);
+                                    if (isFarmer) {
+                                        emptyView.setText("No sales receipts found");
+                                    } else if (isMember) {
+                                        emptyView.setText("No purchase receipts found");
+                                    } else {
+                                        emptyView.setText("No receipts found");
+                                    }
+                                }
+                            }
+                            
+                            // Hide loading indicator
                             if (swipeRefreshLayout != null) swipeRefreshLayout.setRefreshing(false);
-                        } else {
-                            processReceipts(queryDocumentSnapshots);
+                            if (createTestButton != null) createTestButton.setVisibility(View.VISIBLE);
                         }
-                    })
-                    .addOnFailureListener(e -> {
-                        if (!isAdded() || getActivity() == null) return;
-                        
-                        Log.e("RECEIPT_DEBUG", "Query FAILED: " + e.getMessage());
-                        Log.e("RECEIPT_DEBUG", "Error details: ", e);
-                        handleError(e);
                     });
-            }
+                })
+                .addOnFailureListener(e -> {
+                    if (!isAdded() || getActivity() == null) return;
+                    
+                    Log.e("RECEIPT_DEBUG", "Query FAILED: " + e.getMessage());
+                    Log.e("RECEIPT_DEBUG", "Error details: ", e);
+                    handleError(e);
+                });
         } catch (Exception e) {
             Log.e("RECEIPT_DEBUG", "Critical error in loadReceipts: " + e.getMessage(), e);
             if (getActivity() != null) {
@@ -249,6 +295,34 @@ public class ReceiptsFragment extends Fragment {
         }
     }
     
+    /**
+     * Add a section header to separate different types of receipts
+     */
+    private void addSectionHeader(String title, int colorResId) {
+        TextView headerView = new TextView(requireContext());
+        
+        // Set layout parameters
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(0, 32, 0, 16); // top margin of 32dp, bottom margin of 16dp
+        headerView.setLayoutParams(params);
+        
+        // Set text and appearance
+        headerView.setText(title);
+        headerView.setTextSize(20); // 20sp
+        headerView.setTypeface(null, android.graphics.Typeface.BOLD);
+        headerView.setTextColor(getResources().getColor(colorResId));
+        headerView.setPadding(32, 8, 8, 8); // left padding of 32dp
+        
+        // Add a bottom border
+        headerView.setBackgroundResource(R.drawable.border_bottom);
+        
+        // Add to the receipts list
+        receiptsList.addView(headerView);
+    }
+    
     private void processReceipts(com.google.firebase.firestore.QuerySnapshot queryDocumentSnapshots) {
         if (getActivity() == null || !isAdded()) {
             Log.e("RECEIPT_DEBUG", "Activity is null or fragment detached, can't process receipts");
@@ -258,13 +332,26 @@ public class ReceiptsFragment extends Fragment {
         getActivity().runOnUiThread(() -> {
             try {
                 List<Receipt> receipts = new ArrayList<>();
+                // Track receipt IDs at this level too
+                Set<String> uniqueIds = new HashSet<>();
                 
                 for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
                     try {
                         Receipt receipt = document.toObject(Receipt.class);
-                        receipts.add(receipt);
-                        Log.d("RECEIPT_DEBUG", "Receipt processed: " + receipt.getProductName() + 
-                              ", ID: " + receipt.getId());
+                        if (receipt != null) {
+                            String receiptId = receipt.getId();
+                            // Only add if we haven't seen this ID before
+                            if (receiptId == null || !uniqueIds.contains(receiptId)) {
+                                if (receiptId != null) {
+                                    uniqueIds.add(receiptId);
+                                }
+                                receipts.add(receipt);
+                                Log.d("RECEIPT_DEBUG", "Receipt processed: " + receipt.getProductName() + 
+                                    ", ID: " + receipt.getId());
+                            } else {
+                                Log.d("RECEIPT_DEBUG", "Skipped duplicate receipt: " + receiptId);
+                            }
+                        }
                     } catch (Exception e) {
                         Log.e("RECEIPT_DEBUG", "Error converting document: " + e.getMessage());
                         Log.e("RECEIPT_DEBUG", "Document data: " + document.getData().toString());
@@ -277,8 +364,17 @@ public class ReceiptsFragment extends Fragment {
                     Log.d("RECEIPT_DEBUG", "No receipts found, showing empty view");
                     if (emptyView != null) emptyView.setVisibility(View.VISIBLE);
                 } else {
+                    // Sort receipts by timestamp (newest first)
+                    receipts.sort((r1, r2) -> {
+                        // Handle null timestamps (put them at the end)
+                        if (r1.getTimestamp() == null) return 1;
+                        if (r2.getTimestamp() == null) return -1;
+                        // Compare timestamps (reverse order for newest first)
+                        return r2.getTimestamp().compareTo(r1.getTimestamp());
+                    });
+                    
                     // Add the receipts to the view
-                    Log.d("RECEIPT_DEBUG", "Found " + receipts.size() + " receipts, displaying");
+                    Log.d("RECEIPT_DEBUG", "Found " + receipts.size() + " receipts, displaying newest first");
                     if (emptyView != null) emptyView.setVisibility(View.GONE);
                     if (receiptsList != null) {
                         for (Receipt receipt : receipts) {
@@ -316,6 +412,34 @@ public class ReceiptsFragment extends Fragment {
     }
     
     private void displayReceipt(Receipt receipt) {
+        // Check if this receipt has already been displayed to prevent duplicates
+        String receiptId = receipt.getId();
+        if (receiptId != null && !receiptId.isEmpty()) {
+            // Skip if already displayed (prevents duplicates)
+            if (displayedReceiptIds.contains(receiptId)) {
+                Log.d("RECEIPT_DEBUG", "Skipping duplicate receipt: " + receiptId);
+                return;
+            }
+            
+            // Add to tracking set
+            displayedReceiptIds.add(receiptId);
+        } else {
+            // If receipt has no ID, use a combination of fields to create a unique identifier
+            String syntheticId = receipt.getProductId() + "_" + 
+                                receipt.getFarmerPhone() + "_" + 
+                                receipt.getMemberPhone() + "_" + 
+                                receipt.getQuantity() + "_" + 
+                                receipt.getPricePerKg();
+            
+            if (displayedReceiptIds.contains(syntheticId)) {
+                Log.d("RECEIPT_DEBUG", "Skipping duplicate receipt with synthetic ID: " + syntheticId);
+                return;
+            }
+            
+            // Add to tracking set
+            displayedReceiptIds.add(syntheticId);
+        }
+        
         View receiptItem = getLayoutInflater().inflate(R.layout.item_receipt, receiptsList, false);
         
         TextView productNameView = receiptItem.findViewById(R.id.product_name);
@@ -324,10 +448,20 @@ public class ReceiptsFragment extends Fragment {
         TextView totalPriceView = receiptItem.findViewById(R.id.total_price);
         TextView personNameView = receiptItem.findViewById(R.id.person_name);
         TextView phoneNumberView = receiptItem.findViewById(R.id.phone_number);
+        TextView dateTimeView = receiptItem.findViewById(R.id.receipt_date_time);
         
-        // Format currency
-        NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
-        String formattedTotalPrice = currencyFormat.format(receipt.getTotalPrice()).replace("INR", "₹");
+        // Calculate and format the total price
+        // Use the new method that ensures proper multiplication
+        long totalPrice = receipt.getTotalPriceLong(); // Use long to avoid overflow
+        
+        // Direct formatting without currency formatter to ensure accuracy
+        String formattedTotalPrice = "₹" + totalPrice;
+        
+        // Log the values for debugging
+        Log.d("RECEIPT_DEBUG", "Product: " + receipt.getProductName());
+        Log.d("RECEIPT_DEBUG", "Quantity: " + receipt.getQuantity());
+        Log.d("RECEIPT_DEBUG", "Price per kg: " + receipt.getPricePerKg());
+        Log.d("RECEIPT_DEBUG", "Total price calculation: " + receipt.getQuantity() + " * " + receipt.getPricePerKg() + " = " + totalPrice);
         
         // Set product information
         productNameView.setText(receipt.getProductName());
@@ -335,15 +469,61 @@ public class ReceiptsFragment extends Fragment {
         pricePerKgView.setText("Price: ₹" + receipt.getPricePerKg() + "/kg");
         totalPriceView.setText(formattedTotalPrice);
         
-        // Set person information based on user type
-        if (userType.equals(Constants.FARMER)) {
-            // Farmers see member (buyer) information
-            personNameView.setText(receipt.getMemberName());
-            phoneNumberView.setText(receipt.getMemberPhone());
+        // Format and set the date and time
+        if (receipt.getTimestamp() != null) {
+            java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("MMM dd, yyyy hh:mm a", Locale.getDefault());
+            String formattedDate = dateFormat.format(receipt.getTimestamp().toDate());
+            dateTimeView.setText(formattedDate);
         } else {
-            // Members see farmer (seller) information
-            personNameView.setText(receipt.getFarmerName());
-            phoneNumberView.setText(receipt.getFarmerPhone());
+            dateTimeView.setText("Date not available");
+        }
+        
+        // Get the current user's phone number
+        String currentUserPhone = sessionManager.getMobile();
+        
+        // ENHANCEMENT: Add a TextView to clearly indicate the transaction type (sale/purchase)
+        TextView transactionTypeView = new TextView(requireContext());
+        transactionTypeView.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        transactionTypeView.setPadding(16, 8, 16, 8);
+        transactionTypeView.setTextSize(16);
+        transactionTypeView.setTypeface(null, android.graphics.Typeface.BOLD);
+        
+        // Check if this receipt is for the user as a farmer or as a member
+        boolean userIsFarmer = currentUserPhone != null && currentUserPhone.equals(receipt.getFarmerPhone());
+        boolean userIsMember = currentUserPhone != null && currentUserPhone.equals(receipt.getMemberPhone());
+        
+        if (userIsFarmer) {
+            // User is the farmer (seller) in this transaction
+            transactionTypeView.setText("YOU SOLD");
+            transactionTypeView.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+            
+            // Show member (buyer) information
+            personNameView.setText("Buyer: " + receipt.getMemberName());
+            phoneNumberView.setText("Contact: " + receipt.getMemberPhone());
+        } else if (userIsMember) {
+            // User is the member (buyer) in this transaction
+            transactionTypeView.setText("YOU PURCHASED");
+            transactionTypeView.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
+            
+            // Show farmer (seller) information
+            personNameView.setText("Seller: " + receipt.getFarmerName());
+            phoneNumberView.setText("Contact: " + receipt.getFarmerPhone());
+        } else {
+            // Edge case - user is neither (shouldn't happen, but just in case)
+            transactionTypeView.setText("TRANSACTION");
+            transactionTypeView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+            
+            // Show both parties
+            personNameView.setText("Seller: " + receipt.getFarmerName() + " | Buyer: " + receipt.getMemberName());
+            phoneNumberView.setText("Seller: " + receipt.getFarmerPhone() + " | Buyer: " + receipt.getMemberPhone());
+        }
+        
+        // Add the transaction type view at the top of the receipt item
+        if (receiptItem instanceof ViewGroup) {
+            ViewGroup itemRoot = (ViewGroup) receiptItem;
+            itemRoot.addView(transactionTypeView, 0);
         }
         
         receiptsList.addView(receiptItem);
@@ -393,13 +573,13 @@ public class ReceiptsFragment extends Fragment {
         TextView totalPriceView = receiptItem.findViewById(R.id.total_price);
         TextView personNameView = receiptItem.findViewById(R.id.person_name);
         TextView phoneNumberView = receiptItem.findViewById(R.id.phone_number);
+        TextView dateTimeView = receiptItem.findViewById(R.id.receipt_date_time);
         
-        // Calculate total price
-        int totalPrice = quantity * pricePerKg;
+        // Calculate total price using long to avoid overflow issues
+        long totalPrice = (long) quantity * (long) pricePerKg;
         
-        // Format currency
-        NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(new Locale("en", "IN"));
-        String formattedTotalPrice = currencyFormat.format(totalPrice).replace("INR", "₹");
+        // Direct formatting without currency formatter to ensure accuracy
+        String formattedTotalPrice = "₹" + totalPrice;
         
         // Set values
         productNameView.setText(productName);
@@ -409,6 +589,11 @@ public class ReceiptsFragment extends Fragment {
         personNameView.setText(personName);
         phoneNumberView.setText(phoneNumber);
         
+        // Set current date and time for sample receipts
+        java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("MMM dd, yyyy hh:mm a", Locale.getDefault());
+        String formattedDate = dateFormat.format(new java.util.Date());
+        dateTimeView.setText(formattedDate);
+        
         receiptsList.addView(receiptItem);
     }
     
@@ -417,9 +602,28 @@ public class ReceiptsFragment extends Fragment {
         // Show loading
         swipeRefreshLayout.setRefreshing(true);
         
-        // Get current user ID
-        String currentUserId = FirebaseAuth.getInstance().getCurrentUser() != null ? 
-                              FirebaseAuth.getInstance().getCurrentUser().getUid() : "";
+        // Get current user ID and info from SessionManager
+        String currentUserId = sessionManager.getUserId();
+        String userName = sessionManager.getName();
+        String userPhone = sessionManager.getMobile();
+        
+        // Check if we have a phone number
+        if (userPhone == null || userPhone.isEmpty()) {
+            Toast.makeText(requireContext(), "Phone number not available. Please update your profile.", Toast.LENGTH_SHORT).show();
+            swipeRefreshLayout.setRefreshing(false);
+            return;
+        }
+        
+        // If no user ID in SessionManager, fall back to auth
+        if (currentUserId == null || currentUserId.isEmpty()) {
+            FirebaseAuth auth = FirebaseAuth.getInstance();
+            if (auth.getCurrentUser() == null) {
+                Toast.makeText(requireContext(), "You must be logged in to create receipts", Toast.LENGTH_SHORT).show();
+                swipeRefreshLayout.setRefreshing(false);
+                return;
+            }
+            currentUserId = auth.getCurrentUser().getUid();
+        }
         
         if (currentUserId.isEmpty()) {
             Toast.makeText(requireContext(), "You must be logged in to create receipts", Toast.LENGTH_SHORT).show();
@@ -427,43 +631,27 @@ public class ReceiptsFragment extends Fragment {
             return;
         }
         
+        String productId = "testProduct" + System.currentTimeMillis();
+        String productName = "Test Product (Real)";
+        int quantity = 75;
+        int pricePerKg = 60;
+        
         // Create receipt based on user type
-        Receipt receipt;
         if (userType.equals(Constants.FARMER)) {
             // Create a receipt where current user is the farmer
-            receipt = new Receipt(
-                "testProduct" + System.currentTimeMillis(),  // unique product ID
-                "Test Product (Real)",                       // product name
-                75,                                         // quantity
-                60,                                         // price per kg
-                currentUserId,                              // farmer ID (current user)
-                "Your Farm",                                // farmer name
-                "+91 9876543200",                           // farmer phone
-                "testMember" + System.currentTimeMillis(),  // member ID (random)
-                "Test Member",                              // member name
-                "+91 9876543201"                            // member phone
-            );
-        } else {
-            // Create a receipt where current user is the member
-            receipt = new Receipt(
-                "testProduct" + System.currentTimeMillis(),  // unique product ID
-                "Test Product (Real)",                       // product name
-                75,                                         // quantity
-                60,                                         // price per kg
-                "testFarmer" + System.currentTimeMillis(),  // farmer ID (random)
-                "Test Farmer",                              // farmer name
-                "+91 9876543202",                           // farmer phone
-                currentUserId,                              // member ID (current user)
-                "Your Account",                             // member name
-                "+91 9876543203"                            // member phone
-            );
-        }
-        
-        // Save the receipt to Firestore
-        receiptService.createReceipt(receipt)
+            receiptService.createReceiptAsFarmer(
+                requireContext(),
+                productId,
+                productName,
+                quantity,
+                pricePerKg,
+                "testMember" + System.currentTimeMillis(),
+                "Test Member",
+                "+91 8765432101" // Use a different test phone number
+            )
             .addOnSuccessListener(documentReference -> {
                 Toast.makeText(requireContext(), 
-                    "Test receipt created successfully! Pull down to refresh.",
+                    "Test receipt created! Pull down to refresh. New receipts appear at the top.",
                     Toast.LENGTH_LONG).show();
                 swipeRefreshLayout.setRefreshing(false);
                 
@@ -479,5 +667,36 @@ public class ReceiptsFragment extends Fragment {
                 // Log error
                 Log.e("RECEIPT_DEBUG", "Error creating test receipt", e);
             });
+        } else {
+            // Create a receipt where current user is the member
+            receiptService.createReceiptAsMember(
+                requireContext(),
+                productId,
+                productName,
+                quantity,
+                pricePerKg,
+                "testFarmer" + System.currentTimeMillis(),
+                "Test Farmer",
+                "+91 8765432102" // Use a different test phone number
+            )
+            .addOnSuccessListener(documentReference -> {
+                Toast.makeText(requireContext(), 
+                    "Test receipt created! Pull down to refresh. New receipts appear at the top.",
+                    Toast.LENGTH_LONG).show();
+                swipeRefreshLayout.setRefreshing(false);
+                
+                // Log success
+                Log.d("RECEIPT_DEBUG", "Test receipt created with ID: " + documentReference.getId());
+            })
+            .addOnFailureListener(e -> {
+                Toast.makeText(requireContext(),
+                    "Failed to create test receipt: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
+                swipeRefreshLayout.setRefreshing(false);
+                
+                // Log error
+                Log.e("RECEIPT_DEBUG", "Error creating test receipt", e);
+            });
+        }
     }
 } 

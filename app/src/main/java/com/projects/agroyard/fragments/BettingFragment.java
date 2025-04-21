@@ -1,5 +1,7 @@
 package com.projects.agroyard.fragments;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
@@ -14,6 +16,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.util.TypedValue;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -497,7 +500,45 @@ public class BettingFragment extends Fragment {
         String productId = product.getProductId();
         int internalProductId = product.getId();
         
+        // First check if this product is already sold
+        if (product.isSold()) {
+            // Product is sold, disable bidding
+            disableBidding(internalProductId);
+            return;
+        }
+        
         Map<String, Object> productData = product.getOriginalData();
+        
+        // Verify if current_bid is reasonable (should not use values from other products)
+        boolean needsReset = false;
+        if (productData != null && productData.containsKey("current_bid")) {
+            // Get the current bid
+            Object bidObj = productData.get("current_bid");
+            double currentBid = 0;
+            if (bidObj instanceof Double) {
+                currentBid = (Double) bidObj;
+            } else if (bidObj instanceof Long) {
+                currentBid = ((Long) bidObj).doubleValue();
+            } else if (bidObj instanceof Integer) {
+                currentBid = ((Integer) bidObj).doubleValue();
+            }
+            
+            // If current bid is unreasonably different from the product's base price,
+            // reset the bidding session (e.g., if it's a new product but has old bid data)
+            double basePrice = product.getPrice();
+            if (currentBid < basePrice || currentBid > basePrice * 3) {
+                Log.d(TAG, "Current bid (" + currentBid + ") is unreasonable for product " + 
+                      product.getProductName() + " with base price " + basePrice + ". Resetting bidding session.");
+                needsReset = true;
+            }
+        }
+        
+        if (needsReset) {
+            // Bid data seems incorrect, start a fresh session
+            startNewBiddingSession(product);
+            return;
+        }
+        
         if (productData != null && productData.containsKey("bid_end_time")) {
             // There's an existing timer in Firestore
             Object endTimeObj = productData.get("bid_end_time");
@@ -541,8 +582,31 @@ public class BettingFragment extends Fragment {
         // Calculate the end time
         long endTime = System.currentTimeMillis() + INITIAL_BIDDING_TIME;
         
-        // Store it in Firestore
-        FirestoreHelper.updateBidTimerInfo(productId, endTime, new FirestoreHelper.SaveCallback() {
+        // Create fresh bidding data with this product's base price
+        Map<String, Object> freshBidData = new HashMap<>();
+        freshBidData.put("bid_end_time", endTime);
+        freshBidData.put("current_bid", product.getPrice()); // Always use this product's base price
+        freshBidData.put("bidder_name", null);
+        freshBidData.put("bidder_mobile", null);
+        freshBidData.put("bidder_id", null);
+        freshBidData.put("bid_timestamp", null);
+        
+        Log.d(TAG, "Starting new bidding session for product: " + product.getProductName() + 
+            " with base price: " + product.getPrice());
+        
+        // Update the UI immediately to show the correct starting price
+        TextView currentBidView = productCurrentBidViews.get(internalProductId);
+        if (currentBidView != null) {
+            currentBidView.setText(String.format("₹%.0f/kg", product.getPrice()));
+        }
+        
+        TextView yourBidView = productYourBidViews.get(internalProductId);
+        if (yourBidView != null) {
+            yourBidView.setText("None/kg");
+        }
+        
+        // Store it in Firestore with fresh data
+        FirestoreHelper.updateProduct(productId, freshBidData, new FirestoreHelper.SaveCallback() {
             @Override
             public void onSuccess() {
                 // Start the timer locally
@@ -688,13 +752,77 @@ public class BettingFragment extends Fragment {
         farmerView.setText(String.format("Farmer: %s", product.getFarmerName()));
         basePriceView.setText(String.format("Base Price: ₹%.0f/kg", product.getPrice()));
 
+        // Check if the product is already sold
+        boolean isSold = product.isSold();
+        Map<String, Object> productData = product.getOriginalData();
+        
+        if (isSold) {
+            // Product is already sold, disable bidding and show sold status
+            bidButton.setEnabled(false);
+            bidButton.setText("SOLD");
+            bidButton.setTextColor(getResources().getColor(android.R.color.white));
+            bidButton.setBackgroundColor(getResources().getColor(android.R.color.holo_red_dark));
+            bidButton.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+            bidButton.setTypeface(bidButton.getTypeface(), android.graphics.Typeface.BOLD);
+            bidInputView.setEnabled(false);
+            
+            // Show winner information if available
+            if (productData != null) {
+                // Show sold info in timer
+                if (productData.containsKey("sold_to")) {
+                    String soldTo = (String) productData.get("sold_to");
+                    if (soldTo != null && !soldTo.isEmpty()) {
+                        timerView.setText("SOLD TO: " + soldTo);
+                        timerView.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+                    } else {
+                        timerView.setText("PRODUCT SOLD");
+                        timerView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                    }
+                } else {
+                    timerView.setText("PRODUCT SOLD");
+                    timerView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+                }
+                
+                // Show sold amount in button if available
+                if (productData.containsKey("sold_amount")) {
+                    Object soldAmountObj = productData.get("sold_amount");
+                    if (soldAmountObj instanceof Double) {
+                        double soldAmount = (Double) soldAmountObj;
+                        bidButton.setText("SOLD: ₹" + (int)soldAmount);
+                    } else if (soldAmountObj instanceof Long) {
+                        long soldAmount = (Long) soldAmountObj;
+                        bidButton.setText("SOLD: ₹" + soldAmount);
+                    } else if (soldAmountObj instanceof Integer) {
+                        int soldAmount = (Integer) soldAmountObj;
+                        bidButton.setText("SOLD: ₹" + soldAmount);
+                    }
+                }
+                
+                // Show the final bid in the current bid view
+                if (productData.containsKey("sold_amount")) {
+                    Object soldAmountObj = productData.get("sold_amount");
+                    if (soldAmountObj instanceof Double) {
+                        double soldAmount = (Double) soldAmountObj;
+                        currentBidView.setText(String.format("₹%.0f/kg", soldAmount));
+                    } else if (soldAmountObj instanceof Long) {
+                        long soldAmount = (Long) soldAmountObj;
+                        currentBidView.setText(String.format("₹%d/kg", soldAmount));
+                    } else if (soldAmountObj instanceof Integer) {
+                        int soldAmount = (Integer) soldAmountObj;
+                        currentBidView.setText(String.format("₹%d/kg", soldAmount));
+                    }
+                }
+            } else {
+                timerView.setText("PRODUCT SOLD");
+                timerView.setTextColor(getResources().getColor(android.R.color.darker_gray));
+            }
+        }
         // If product is waiting for bidding to start, disable bidding controls
-        if (isWaiting) {
+        else if (isWaiting) {
             bidButton.setEnabled(false);
             bidInputView.setEnabled(false);
             
             // Get the waiting time
-            Map<String, Object> productData = product.getOriginalData();
             if (productData != null && productData.containsKey("bidding_start_time")) {
                 long biddingStartTime = 0;
                 Object startTimeObj = productData.get("bidding_start_time");
@@ -719,12 +847,17 @@ public class BettingFragment extends Fragment {
             // Set timer color to blue to indicate waiting
             timerView.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
         } else {
+            // Regular active product for bidding
             // Set current bid (check if there's already a current_bid in the product data)
-            double currentBid = product.getPrice() + 2; // Default to base price + 2
+            double currentBid = product.getPrice(); // Default to base price
             
-            // Check for existing current_bid in product data
-            Map<String, Object> productData = product.getOriginalData();
-            if (productData != null && productData.containsKey("current_bid")) {
+            // Check for existing current_bid in product data ONLY for active bidding products
+            if (productData != null && 
+                productData.containsKey("current_bid") && 
+                productData.containsKey("bidder_name") &&
+                productData.get("bidder_name") != null) {
+                
+                // This product has an active bid with a bidder - use the current bid value
                 Object currentBidObj = productData.get("current_bid");
                 if (currentBidObj instanceof Double) {
                     currentBid = (Double) currentBidObj;
@@ -733,6 +866,16 @@ public class BettingFragment extends Fragment {
                 } else if (currentBidObj instanceof Integer) {
                     currentBid = ((Integer) currentBidObj).doubleValue();
                 }
+                
+                // Sanity check - don't use unreasonable values
+                if (currentBid < product.getPrice()) {
+                    currentBid = product.getPrice(); // Reset to base price if too low
+                    Log.d(TAG, "Resetting current bid to base price for " + product.getProductName());
+                }
+            } else {
+                // No active bid yet, initialize with base price
+                Log.d(TAG, "No active bidding yet for product " + product.getProductName() + 
+                      ", using base price: " + product.getPrice());
             }
             
             currentBidView.setText(String.format("₹%.0f/kg", currentBid));
@@ -846,127 +989,288 @@ public class BettingFragment extends Fragment {
      * Handle completion of bidding session for a specific product
      */
     private void handleBiddingCompletion(int productId) {
-        // Find the product
-        Product productToUse = null;
-        for (Product product : productList) {
-            if (product.getId() == productId) {
-                productToUse = product;
+        Log.d(TAG, "Bidding completed for product ID: " + productId);
+        
+        // Disable the bidding UI first
+        disableBidding(productId);
+        
+        // Find product details
+        Product product = null;
+        for (Product p : productList) {
+            if (p.getId() == productId) {
+                product = p;
                 break;
             }
         }
 
-        if (productToUse == null) return;
+        if (product == null) {
+            Log.e(TAG, "Cannot find product for ID: " + productId);
+            return;
+        }
         
-        // Create a final copy for use in inner class
-        final Product foundProduct = productToUse;
+        // Make product final to use in lambda
+        final Product finalProduct = product;
         
-        // Get product details
-        String productName = foundProduct.getProductName();
-        String productIdStr = foundProduct.getProductId();
-
-        // Check if there was a bid placed (i.e., there's a winner)
-        if (productBidStatus.getOrDefault(productId, false)) {
-            Toast.makeText(requireContext(), "Bidding for " + productName + " ended!", Toast.LENGTH_LONG).show();
+        // Get the product details
+        final String productIdStr = product.getProductId();
+        final String productName = product.getProductName();
+        final int quantity = (int) product.getQuantity(); // Cast double to int
+        Log.d(TAG, "Product found: " + productName + ", ID: " + productIdStr + ", quantity: " + quantity);
+        
+        // Check if a receipt has already been created for this product
+        FirestoreHelper.getProductById(productIdStr, new FirestoreHelper.ProductCallback() {
+            @Override
+            public void onProductLoaded(Map<String, Object> productData) {
+                if (productData == null) {
+                    Log.e(TAG, "Error: Could not find product data for " + productIdStr);
+                    return;
+                }
+                
+                // Check if receipt_created flag exists and is true
+                Boolean receiptCreated = false;
+                if (productData.containsKey("receipt_created")) {
+                    Object receiptObj = productData.get("receipt_created");
+                    if (receiptObj instanceof Boolean) {
+                        receiptCreated = (Boolean) receiptObj;
+                    }
+                }
+                
+                if (receiptCreated) {
+                    Log.d(TAG, "Receipt already created for product " + productName + ". Skipping creation.");
+                    return;
+                }
+                
+                // Continue with receipt creation since none exists yet
+                createReceiptsForProduct(finalProduct);
+                
+                // Mark product as having receipts created to prevent duplicates
+                Map<String, Object> updateData = new HashMap<>();
+                updateData.put("receipt_created", true);
+                
+                FirestoreHelper.updateProduct(productIdStr, updateData, new FirestoreHelper.SaveCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Log.d(TAG, "Product marked as having receipts created: " + productIdStr);
+                    }
+                    
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Error marking product as having receipts: " + e.getMessage());
+                    }
+                });
+            }
             
-            // Get the winner bid information from Firestore
-            FirestoreHelper.getBidInfo(productIdStr, new FirestoreHelper.BidInfoCallback() {
-                @Override
-                public void onBidInfoRetrieved(FirestoreHelper.BidInfo bidInfo) {
-                    if (bidInfo == null || bidInfo.getBidAmount() == null) return;
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error checking product receipt status: " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Create receipts for a product that has completed bidding
+     */
+    private void createReceiptsForProduct(Product product) {
+        final String productIdStr = product.getProductId();
+        final String productName = product.getProductName();
+        final int quantity = (int) product.getQuantity();
+        
+        // Get current user info to avoid lambda capturing issues
+        final SessionManager sessionManager = new SessionManager(requireContext());
+        final String currentUserPhone = sessionManager.getMobile();
+        
+        FirestoreHelper.getBidInfo(productIdStr, new FirestoreHelper.BidInfoCallback() {
+            @Override
+            public void onBidInfoRetrieved(FirestoreHelper.BidInfo bidInfo) {
+                if (bidInfo == null || bidInfo.getBidAmount() == null || bidInfo.getBidAmount() <= 0) {
+                    // No valid bid found
+                    Log.d(TAG, "No valid bid found for product: " + productName);
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            Toast.makeText(requireContext(), "No valid bids were placed for " + productName, Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                    return;
+                }
+                
+                Log.d(TAG, "Winning bid: " + bidInfo.getBidAmount() + " by " + bidInfo.getBidderName());
+                    
+                // Get farmer details from product data
+                final String farmerId;
+                final String farmerName;
+                final String farmerPhone;
+                
+                Map<String, Object> productData = product.getOriginalData(); 
+                    
+                if (productData != null) {
+                    farmerId = productData.containsKey("farmer_id") ? 
+                        String.valueOf(productData.get("farmer_id")) : "";
+                    farmerName = productData.containsKey("farmer_name") ? 
+                        String.valueOf(productData.get("farmer_name")) : "";
+                    farmerPhone = productData.containsKey("farmer_mobile") ? 
+                        String.valueOf(productData.get("farmer_mobile")) : "";
+                } else {
+                    farmerId = "";
+                    farmerName = "";
+                    farmerPhone = "";
+                }
+                
+                // Debug logs for farmer info
+                Log.d(TAG, "Farmer details - ID: " + farmerId + ", Name: " + farmerName + ", Phone: " + farmerPhone);
+                    
+                // Get member (winner) details from bid info
+                final String memberId = bidInfo.getBidderId() != null ? bidInfo.getBidderId() : "";
+                final String memberName = bidInfo.getBidderName() != null ? bidInfo.getBidderName() : "";
+                final String memberPhone = bidInfo.getBidderMobile() != null ? bidInfo.getBidderMobile() : "";
+                
+                // Debug logs for member info
+                Log.d(TAG, "Member details - ID: " + memberId + ", Name: " + memberName + ", Phone: " + memberPhone);
+                    
+                // Create a receipt for this winning bid
+                final int bidAmount = bidInfo.getBidAmount().intValue();
+                final int finalQuantity = quantity;
+                
+                // Debug log for bid amount and quantity
+                Log.d(TAG, "Bid amount: " + bidAmount + ", Quantity: " + finalQuantity);
+                
+                // Get the user type from SessionManager
+                String userType = sessionManager.getUserType();
+                String currentUserId = sessionManager.getUserId();
+                
+                // Debug logs for current user
+                Log.d(TAG, "Current user - ID: " + currentUserId + ", Phone: " + currentUserPhone + ", Type: " + userType);
+                
+                // Ensure we have a valid product name
+                String verifiedProductName = product.getProductName();
+                
+                if (verifiedProductName == null || verifiedProductName.isEmpty()) {
+                    Log.w(TAG, "Product name is invalid - attempting to get correct name");
+                    
+                    // Try to get the product name from the original data
+                    if (productData != null && productData.containsKey("product_name")) {
+                        String nameFromData = (String) productData.get("product_name");
+                        if (nameFromData != null && !nameFromData.isEmpty()) {
+                            verifiedProductName = nameFromData;
+                            Log.d(TAG, "Using product name from original data: " + verifiedProductName);
+                        }
+                    }
+                    
+                    // If we still don't have a valid name, create one from the ID
+                    if (verifiedProductName == null || verifiedProductName.isEmpty()) {
+                        verifiedProductName = "Product-" + productIdStr.substring(0, Math.min(productIdStr.length(), 8));
+                        Log.d(TAG, "Using derived product name: " + verifiedProductName);
+                    }
+                }
+                
+                // Add debugging to verify product name
+                Log.d(TAG, "Creating receipt with product name: " + verifiedProductName);
+                Log.d(TAG, "Product details - ID: " + productIdStr + ", Name: " + verifiedProductName + ", Quantity: " + finalQuantity);
+                
+                // Use the verified product name for all receipt creation calls
+                final String finalVerifiedProductName = verifiedProductName;
+                
+                // Create receipt service with context
+                ReceiptService receiptService = new ReceiptService(requireContext());
+                
+                // Flag to track if we've created a receipt
+                final boolean[] receiptCreated = {false};
+                
+                // Store these final references for use in lambdas
+                final String finalFarmerPhone = farmerPhone;
+                final String finalMemberPhone = memberPhone;
+                
+                // Always create both receipts to ensure they're properly recorded
+                // Receipt for the farmer
+                receiptService.createReceiptAsFarmer(
+                    requireContext(),
+                    productIdStr,
+                    finalVerifiedProductName,
+                    finalQuantity,
+                    bidAmount,
+                    memberId,
+                    memberName,
+                    memberPhone
+                ).addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "Farmer receipt created successfully with ID: " + documentReference.getId());
+                    receiptCreated[0] = true;
                     
                     if (getActivity() == null) return;
                     
-                    // Get product quantity from product data
-                    int quantity = 0;
-                    Map<String, Object> productData = foundProduct.getOriginalData();
-                    if (productData != null && productData.containsKey("quantity")) {
-                        Object quantityObj = productData.get("quantity");
-                        if (quantityObj instanceof Long) {
-                            quantity = ((Long) quantityObj).intValue();
-                        } else if (quantityObj instanceof Integer) {
-                            quantity = (Integer) quantityObj;
-                        } else if (quantityObj instanceof String) {
-                            try {
-                                quantity = Integer.parseInt((String) quantityObj);
-                            } catch (NumberFormatException e) {
-                                Log.e(TAG, "Error parsing quantity", e);
-                            }
-                        }
-                    }
-                    
-                    // If quantity is not available, use a default value
-                    if (quantity <= 0) {
-                        quantity = 50; // Default value
-                    }
-                    
-                    // Get farmer details from product data
-                    String farmerId = "";
-                    String farmerName = "";
-                    String farmerPhone = "";
-                    
-                    if (productData != null) {
-                        if (productData.containsKey("farmer_id")) {
-                            farmerId = String.valueOf(productData.get("farmer_id"));
-                        }
-                        if (productData.containsKey("farmer_name")) {
-                            farmerName = String.valueOf(productData.get("farmer_name"));
-                        }
-                        if (productData.containsKey("farmer_mobile")) {
-                            farmerPhone = String.valueOf(productData.get("farmer_mobile"));
-                        }
-                    }
-                    
-                    // Get member (winner) details from bid info
-                    String memberId = bidInfo.getBidderId() != null ? bidInfo.getBidderId() : "";
-                    String memberName = bidInfo.getBidderName() != null ? bidInfo.getBidderName() : "";
-                    String memberPhone = bidInfo.getBidderMobile() != null ? bidInfo.getBidderMobile() : "";
-                    
-                    // Create a receipt for this winning bid
-                    final int bidAmount = bidInfo.getBidAmount().intValue();
-                    final int finalQuantity = quantity;
-                    
-                    Receipt receipt = new Receipt(
-                        productIdStr,
-                        productName,
-                        finalQuantity,
-                        bidAmount,
-                        farmerId,
-                        farmerName,
-                        farmerPhone,
-                        memberId,
-                        memberName,
-                        memberPhone
-                    );
-                    
-                    // Save the receipt to Firestore
-                    ReceiptService receiptService = new ReceiptService();
-                    receiptService.createReceipt(receipt).addOnSuccessListener(documentReference -> {
-                        if (getActivity() == null) return;
-                        
+                    if (currentUserPhone != null && currentUserPhone.equals(finalFarmerPhone)) {
                         getActivity().runOnUiThread(() -> {
                             Toast.makeText(requireContext(),
-                                    "Receipt created for " + memberName + "'s winning bid!",
+                                    "Receipt created for " + memberName + "'s winning bid on " + finalVerifiedProductName + "!",
                                     Toast.LENGTH_SHORT).show();
                         });
-                    }).addOnFailureListener(e -> {
-                        if (getActivity() == null) return;
-                        
+                    }
+                }).addOnFailureListener(e -> {
+                    if (getActivity() == null) return;
+                    
+                    Log.e(TAG, "Error creating farmer receipt", e);
+                });
+                
+                // Receipt for the member/buyer
+                receiptService.createReceiptAsMember(
+                    requireContext(),
+                    productIdStr,
+                    finalVerifiedProductName,
+                    finalQuantity,
+                    bidAmount,
+                    farmerId,
+                    farmerName,
+                    farmerPhone
+                ).addOnSuccessListener(documentReference -> {
+                    Log.d(TAG, "Member receipt created successfully with ID: " + documentReference.getId());
+                    receiptCreated[0] = true;
+                    
+                    if (getActivity() == null) return;
+                    
+                    if (currentUserPhone != null && currentUserPhone.equals(finalMemberPhone)) {
                         getActivity().runOnUiThread(() -> {
-                            Log.e(TAG, "Error creating receipt", e);
+                            Toast.makeText(requireContext(),
+                                    "Receipt created for your winning bid on " + finalVerifiedProductName + "!",
+                                    Toast.LENGTH_SHORT).show();
                         });
+                    }
+                }).addOnFailureListener(e -> {
+                    if (getActivity() == null) return;
+                    
+                    Log.e(TAG, "Error creating member receipt", e);
+                });
+                
+                // Mark the product as sold
+                Map<String, Object> soldUpdate = new HashMap<>();
+                soldUpdate.put("is_sold", true);
+                soldUpdate.put("sold_at", System.currentTimeMillis());
+                soldUpdate.put("sold_to", memberName);
+                soldUpdate.put("sold_to_mobile", memberPhone);
+                soldUpdate.put("sold_amount", bidAmount);
+                
+                FirestoreHelper.updateProduct(productIdStr, soldUpdate, new FirestoreHelper.SaveCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Log.d(TAG, "Product marked as sold in database: " + productIdStr);
+                    }
+                    
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e(TAG, "Error marking product as sold", e);
+                    }
+                });
+            }
+                
+            @Override
+            public void onError(Exception e) {
+                Log.e(TAG, "Error getting bid info for receipt creation", e);
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(requireContext(), 
+                            "Error creating receipt: " + e.getMessage(), 
+                            Toast.LENGTH_SHORT).show();
                     });
                 }
-                
-                @Override
-                public void onError(Exception e) {
-                    Log.e(TAG, "Error getting bid info for receipt creation", e);
-                }
-            });
-        } else {
-            Toast.makeText(requireContext(), productName + " is sold out!", Toast.LENGTH_LONG).show();
-        }
-        
-        disableBidding(productId);
+            }
+        });
     }
     
     /**
@@ -1008,24 +1312,99 @@ public class BettingFragment extends Fragment {
 
         // Disable bidding controls
         bidButton.setEnabled(false);
+        bidButton.setText("SOLD");
+        bidButton.setTextColor(getResources().getColor(android.R.color.white));
+        bidButton.setBackgroundColor(getResources().getColor(android.R.color.holo_red_dark));
+        bidButton.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        bidButton.setTypeface(bidButton.getTypeface(), android.graphics.Typeface.BOLD);
+        
+        // Add a small animation to draw attention to the SOLD status
+        bidButton.setAlpha(0.7f);
+        bidButton.animate().alpha(1.0f).setDuration(500).start();
+        
         bidInput.setEnabled(false);
-        timerText.setText("CLOSED");
+        
+        // We'll update the timer text with winner info in the bid info callback
+        timerText.setText("BIDDING CLOSED");
         timerText.setTextColor(getResources().getColor(android.R.color.darker_gray));
 
-        // Find the product name
+        // Find the product name and product ID
         String productName = "";
+        String productIdStr = "";
         for (Product product : productList) {
             if (product.getId() == productId) {
                 productName = product.getProductName();
+                productIdStr = product.getProductId();
+                
+                // Also update the product's status in Firestore to mark it as sold
+                if (product.getProductId() != null && !product.getProductId().isEmpty()) {
+                    updateProductSoldStatus(product.getProductId(), true);
+                }
+                
                 break;
             }
+        }
+        
+        // Get the winner information to display
+        if (productIdStr != null && !productIdStr.isEmpty()) {
+            final TextView finalTimerText = timerText;
+            final Button finalBidButton = bidButton;
+            
+            FirestoreHelper.getBidInfo(productIdStr, new FirestoreHelper.BidInfoCallback() {
+                @Override
+                public void onBidInfoRetrieved(FirestoreHelper.BidInfo bidInfo) {
+                    if (bidInfo != null && bidInfo.getBidderName() != null && !bidInfo.getBidderName().isEmpty()) {
+                        // Update timer text to show the winner
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                // Show winner info in a more prominent way
+                                finalTimerText.setText("SOLD TO: " + bidInfo.getBidderName());
+                                finalTimerText.setTextColor(getResources().getColor(android.R.color.holo_green_dark));
+                                
+                                // Add winning bid amount to the button text
+                                if (bidInfo.getBidAmount() != null) {
+                                    finalBidButton.setText("SOLD: ₹" + bidInfo.getBidAmount().intValue());
+                                }
+                            });
+                        }
+                    }
+                }
+                
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Error getting winner info", e);
+                }
+            });
         }
 
         if (!productName.isEmpty()) {
             Toast.makeText(requireContext(),
-                    "Bidding for " + productName + " is now closed.",
+                    "Bidding for " + productName + " is now closed. Product marked as SOLD OUT.",
                     Toast.LENGTH_SHORT).show();
         }
+    }
+    
+    /**
+     * Update the product's sold status in Firestore
+     */
+    private void updateProductSoldStatus(String productId, boolean isSold) {
+        Map<String, Object> updateData = new HashMap<>();
+        updateData.put("is_sold", isSold);
+        updateData.put("sold_at", System.currentTimeMillis());
+           
+        // Replace direct access to private productsCollection with proper method call
+        FirestoreHelper.updateProduct(productId, updateData, 
+            new FirestoreHelper.SaveCallback() {
+                @Override
+                public void onSuccess() {
+                    Log.d(TAG, "Product marked as sold: " + productId);
+                }
+                
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "Failed to mark product as sold: " + productId, e);
+                }
+            });
     }
     
     /**
@@ -1101,9 +1480,6 @@ public class BettingFragment extends Fragment {
                             if (bidInput != null) {
                                 bidInput.setText("");
                             }
-                            
-                            // Reset timer after successful bid
-                            resetBiddingTimer(productId);
                         });
                     }
                     

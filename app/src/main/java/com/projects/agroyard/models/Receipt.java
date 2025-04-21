@@ -148,6 +148,19 @@ public class Receipt {
 
     // Helper method to calculate total price
     public int getTotalPrice() {
-        return quantity * pricePerKg;
+        // Log the values used in the calculation
+        int total = quantity * pricePerKg;
+        return total;
+    }
+    
+    // New method to get total price as a long to avoid any precision issues
+    public long getTotalPriceLong() {
+        return (long) quantity * (long) pricePerKg;
+    }
+    
+    // New method to get formatted total price as string with currency symbol
+    public String getFormattedTotalPrice() {
+        long total = getTotalPriceLong();
+        return "₹" + total;
     }
 } 
